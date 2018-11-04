@@ -93,8 +93,9 @@ inline std::string readCsvField(std::istreambuf_iterator<char>& it, bool& new_ro
   return result;
 }
 
-inline std::vector<std::string> readCsvRow(std::istreambuf_iterator<char>& it) {
+inline std::vector<std::string> readCsvRow(std::istreambuf_iterator<char>& it, size_t reserve = 0) {
   std::vector<std::string> result;
+  result.reserve(reserve);
   bool new_row = false;
   while (it != EOCSVF && !new_row) {
     result.push_back(readCsvField(it, new_row));
@@ -260,7 +261,7 @@ class dynamic {
       header_ = detail::readCsvRow(it);
     }
     while (it != detail::EOCSVF) {
-      std::vector<std::string> row = detail::readCsvRow(it);
+      std::vector<std::string> row = detail::readCsvRow(it, header_.size());
       while (row.size() < header_.size()) {
         row.emplace_back();
       }
