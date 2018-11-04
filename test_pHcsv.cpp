@@ -36,6 +36,15 @@ int test_dynamic_wiki() {
   ASSERT_EQ(data.get<float>(3, "Price"), 4799.0f);
   ASSERT_EQ(data.get<double>(1, "Price"), 4900.0);
 
+  // Test add data
+  data.addRow();
+  data.at(4, "Price") = "4200.00";
+  ASSERT_EQ(data.get<double>(4, "Price"), 4200.0);
+  data.addHeader("CC");
+  ASSERT_EQ(data.get<std::string>(3, "CC"), "");
+  data.at(4, "CC") = "3997";
+  ASSERT_EQ(data.get<double>(4, "CC"), 3997.0);
+
   // Test write()
   data.write("../dcsv/test_data/wiki_written.csv", true);
   pHcsv::dynamic written_data("../dcsv/test_data/wiki_written.csv", true);

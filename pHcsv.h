@@ -218,6 +218,19 @@ class dynamic {
     return data_[row][column];
   }
 
+  inline void addRow() {
+    data_.emplace_back(header_.size(), "");
+  }
+
+  inline void addHeader(const std::string& column) {
+    if (std::find(header_.begin(), header_.end(), column) == header_.end()) {
+      header_.push_back(column);
+      for (auto& row : data_) {
+        row.emplace_back();
+      }
+    }
+  }
+
   template <typename T = std::string>
   inline T get(size_t row, const std::string& column) const {
     return detail::convert<T>(at(row, column));
