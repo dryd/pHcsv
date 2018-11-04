@@ -97,10 +97,29 @@ inline std::vector<std::string> readCsvRow(std::istreambuf_iterator<char>& it, s
   std::vector<std::string> result;
   result.reserve(reserve);
   bool new_row = false;
+  size_t i = 0;
   while (it != EOCSVF && !new_row) {
     result.push_back(readCsvField(it, new_row));
+    i++;
+  }
+  for (; i < reserve; i++) {
+    result.emplace_back();
   }
   return result;
+}
+
+inline std::map<std::string, std::string> readCsvRowToMap(std::istreambuf_iterator<char>& it, const std::vector<std::string>& header) {
+  std::map<std::string, std::string> row_map;
+  bool new_row = false;
+  size_t h = 0;
+  while (it != detail::EOCSVF && !new_row) {
+    row_map.emplace(header.at(h), detail::readCsvField(it, new_row));
+    h++;
+  }
+  for (; h < header.size(); h++) {
+    row_map.emplace(header.at(h), "");
+  }
+  return row_map;
 }
 
 void writeCsvRow(std::ostreambuf_iterator<char>& it, const std::vector<std::string>& row) {
@@ -110,6 +129,7 @@ void writeCsvRow(std::ostreambuf_iterator<char>& it, const std::vector<std::stri
     for (char c : field) {
       if (c == ',' || c == '"') {
         escape = true;
+        break;
       }
     }
     if (escape) {
@@ -262,9 +282,6 @@ class dynamic {
     }
     while (it != detail::EOCSVF) {
       std::vector<std::string> row = detail::readCsvRow(it, header_.size());
-      while (row.size() < header_.size()) {
-        row.emplace_back();
-      }
       data_.push_back(std::move(row));
     }
   }
@@ -361,17 +378,7 @@ class typed : public std::vector<T> {
     }
     header_ = detail::readCsvRow(it);
     while (it != detail::EOCSVF) {
-      std::map<std::string, std::string> row;
-      bool new_row = false;
-      size_t h = 0;
-      while (it != detail::EOCSVF && !new_row) {
-        row.emplace(header_.at(h), detail::readCsvField(it, new_row));
-        h++;
-      }
-      for (; h < header_.size(); h++) {
-        row.emplace(header_.at(h), "");
-      }
-      std::vector<T>::push_back(parse_func(row));
+      std::vector<T>::push_back(parse_func(detail::readCsvRowToMap(it, header_)));
     }
   }
 
@@ -418,12 +425,6 @@ class typed : public std::vector<T> {
       if (i != std::vector<T>::size() - 1) {
         it = '\n';
       }
-    }
-  }
-
-  inline void rangeCheck(size_t row) const {
-    if (row >= std::vector<T>::size()) {
-      throw std::runtime_error("Row " + std::to_string(row) + " out of bounds");
     }
   }
 
