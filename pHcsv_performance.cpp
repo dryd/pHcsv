@@ -139,14 +139,23 @@ int main(int argc, char** argv) {
     if (mode == 2) {
         auto start = std::chrono::high_resolution_clock::now();
         pHcsv::typed<SSO> data("test_data/SsoObservation_no_header.csv", convertFromVec);
-        logPerf("pHcsv::typed<SSO>", start);
-
-        start = std::chrono::high_resolution_clock::now();
-        double avg = 0.0;
-        for (const auto& sso : data) {
-            avg += sso.x_gaia;
-        }
-        logPerf("pHcsv::typed<SSO> avg (" + std::to_string(avg/static_cast<double>(data.size())) + ")", start);
+        logPerf("pHcsv::typed<SSO> (no_header)", start);
+    }
+    if (mode == 3) {
+        auto start = std::chrono::high_resolution_clock::now();
+        std::vector<SSO> data;
+        pHcsv::streamRows("test_data/SsoObservation.csv", [&data] (const std::map<std::string, std::string>& row) {
+            data.push_back(convertFromMap(row));
+        });
+        logPerf("pHcsv::streamRows", start);
+    }
+    if (mode == 4) {
+        auto start = std::chrono::high_resolution_clock::now();
+        std::vector<SSO> data;
+        pHcsv::streamRows("test_data/SsoObservation_no_header.csv", [&data] (const std::vector<std::string>& row) {
+            data.push_back(convertFromVec(row));
+        });
+        logPerf("pHcsv::streamRows (no_header)", start);
     }
     if (mode == -1) {
         // Directly from stringstream

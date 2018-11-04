@@ -32,7 +32,7 @@ inline std::string readCsvField(std::istreambuf_iterator<char>& it, bool& new_ro
           case ',':
             return result;
           case '"':
-            result.push_back('"');
+            result.push_back(c);
             quote = false;
             break;
           default:
@@ -430,5 +430,36 @@ class typed : public std::vector<T> {
 
   std::vector<std::string> header_;
 };
+
+void streamRows(std::istream& in, std::function<void(const std::map<std::string, std::string>&)> parse_func) {
+  if (in.bad() || in.fail()) {
+    throw std::runtime_error("Bad input");
+  }
+  std::istreambuf_iterator<char> it(in);
+  std::vector<std::string> header = detail::readCsvRow(it);
+  while (it != detail::EOCSVF) {
+    parse_func(detail::readCsvRowToMap(it, header));
+  }
+}
+
+inline void streamRows(const std::string& filename, std::function<void(const std::map<std::string, std::string>&)> parse_func) {
+  std::ifstream in(filename, std::ios::in | std::ios::binary);
+  streamRows(in, parse_func);
+}
+
+void streamRows(std::istream& in, std::function<void(const std::vector<std::string>&)> parse_func) {
+  if (in.bad() || in.fail()) {
+    throw std::runtime_error("Bad input");
+  }
+  std::istreambuf_iterator<char> it(in);
+  while (it != detail::EOCSVF) {
+    parse_func(detail::readCsvRow(it));
+  }
+}
+
+inline void streamRows(const std::string& filename, std::function<void(const std::vector<std::string>&)> parse_func) {
+  std::ifstream in(filename, std::ios::in | std::ios::binary);
+  streamRows(in, parse_func);
+}
 
 }  // namespace pHcsv

@@ -146,6 +146,28 @@ int test_typed_wiki_no_header() {
   return status;
 }
 
+int test_streaming() {
+  std::map<int, std::vector<Car>> cheap_cars_by_year;
+  pHcsv::streamRows("../dcsv/test_data/wiki.csv", [&cheap_cars_by_year] (const std::map<std::string, std::string>& row) {
+    if (std::stod(row.at("Price")) < 4800.0) {
+      cheap_cars_by_year[std::stoi(row.at("Year"))].push_back(parseCar(row));
+    }
+  });
+  ASSERT_EQ(cheap_cars_by_year.size(), 2);
+  ASSERT_EQ(cheap_cars_by_year.at(1997).front().model, "E350");
+
+  cheap_cars_by_year.clear();
+  pHcsv::streamRows("../dcsv/test_data/wiki_no_header.csv", [&cheap_cars_by_year] (const std::vector<std::string>& row) {
+    if (std::stod(row.at(4)) < 4800.0) {
+      cheap_cars_by_year[std::stoi(row.at(0))].push_back(parseCarFromVec(row));
+    }
+  });
+  ASSERT_EQ(cheap_cars_by_year.size(), 2);
+  ASSERT_EQ(cheap_cars_by_year.at(1997).front().model, "E350");
+
+  return 0;
+}
+
 int main() {
-  return test_dynamic_wiki() + test_typed_wiki_header() + test_typed_wiki_no_header();
+  return test_dynamic_wiki() + test_typed_wiki_header() + test_typed_wiki_no_header() + test_streaming();
 }
