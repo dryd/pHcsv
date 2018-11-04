@@ -1,7 +1,5 @@
 #include "pHcsv.h"
 
-#include <assert.h>
-
 template<typename T>
 inline std::string toString(const T& val) {
   return std::to_string(val);
@@ -141,7 +139,8 @@ int test_typed_wiki_no_header() {
     return std::vector<std::string>{std::to_string(car.year), car.make, car.model, car.description, std::to_string(car.price), car.extras};
   });
   pHcsv::typed<Car> written_data("../dcsv/test_data/wiki_written.csv", parseCarFromVec);
-  ASSERT_EQ(data.at(0).extras, written_data.at(0).extras);
+  const std::vector<Car>& cars = written_data;
+  ASSERT_EQ(data.at(0).extras, cars.at(0).extras);
   std::remove("../dcsv/test_data/wiki_written.csv");
 
   return status;

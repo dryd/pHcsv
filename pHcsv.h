@@ -186,7 +186,7 @@ class dynamic {
     writeStream(out, with_header);
   }
 
-  inline size_t header_index(const std::string& column) const {
+  inline size_t headerIndex(const std::string& column) const {
     for (size_t i = 0; i < header_.size(); i++) {
       if (header_.at(i) == column) {
         return i;
@@ -201,12 +201,12 @@ class dynamic {
 
   inline std::string& at(size_t row, const std::string& column) {
     rangeCheck(row);
-    return data_[row][header_index(column)];
+    return data_[row][headerIndex(column)];
   }
 
   inline const std::string& at(size_t row, const std::string& column) const {
     rangeCheck(row);
-    return data_[row][header_index(column)];
+    return data_[row][headerIndex(column)];
   }
 
   inline std::string& at(size_t row, size_t column) {
@@ -303,7 +303,7 @@ class dynamic {
 };
 
 template <typename T>
-class typed {
+class typed : public std::vector<T> {
  public:
   typed(const std::string& filename, std::function<T(const std::map<std::string, std::string>&)> parse_func) {
     std::ifstream in(filename, std::ios::in | std::ios::binary);
@@ -341,32 +341,12 @@ class typed {
     writeStreamNoHeader(out, vector_func);
   }
 
-  inline size_t size() const {
-    return data_.size();
+  inline const std::vector<std::string>& header() const {
+    return header_;
   }
 
-  inline T& at(size_t row) {
-    rangeCheck(row);
-    return data_[row];
-  }
-
-  inline const T& at(size_t row) const {
-    rangeCheck(row);
-    return data_[row];
-  }
-
-  inline const std::vector<T>& data() const {
-    return data_;
-  }
-
-  inline std::vector<T>& data() {
-    return data_;
-  }
-
-  template <typename... Args>
-  inline T& emplace_back(Args&&... args) {
-    data_.emplace_back(std::forward<Args>(args)...);
-    return data_.back();
+  inline std::vector<std::string>& header() {
+    return header_;
   }
 
  private:
@@ -390,7 +370,7 @@ class typed {
       for (; h < header_.size(); h++) {
         row.emplace(header_.at(h), "");
       }
-      data_.push_back(parse_func(row));
+      std::vector<T>::push_back(parse_func(row));
     }
   }
 
@@ -400,7 +380,7 @@ class typed {
     }
     std::istreambuf_iterator<char> it(in);
     while (it != detail::EOCSVF) {
-      data_.push_back(parse_func(detail::readCsvRow(it)));
+      std::vector<T>::push_back(parse_func(detail::readCsvRow(it)));
     }
   }
 
@@ -411,8 +391,8 @@ class typed {
     std::ostreambuf_iterator<char> it(out);
     detail::writeCsvRow(it, header_);
     it = '\n';
-    for (size_t i = 0; i < data_.size(); i++) {
-      std::map<std::string, std::string> data_map = map_func(data_.at(i));
+    for (size_t i = 0; i < std::vector<T>::size(); i++) {
+      std::map<std::string, std::string> data_map = map_func(std::vector<T>::at(i));
       std::vector<std::string> row(header_.size(), "");
       for (size_t h = 0; h < header_.size(); h++) {
         auto it = data_map.find(header_.at(h));
@@ -421,7 +401,7 @@ class typed {
         }
       }
       detail::writeCsvRow(it, row);
-      if (i != data_.size() - 1) {
+      if (i != std::vector<T>::size() - 1) {
         it = '\n';
       }
     }
@@ -432,22 +412,21 @@ class typed {
       throw std::runtime_error("Bad output");
     }
     std::ostreambuf_iterator<char> it(out);
-    for (size_t i = 0; i < data_.size(); i++) {
-      detail::writeCsvRow(it, vector_func(data_.at(i)));
-      if (i != data_.size() - 1) {
+    for (size_t i = 0; i < std::vector<T>::size(); i++) {
+      detail::writeCsvRow(it, vector_func(std::vector<T>::at(i)));
+      if (i != std::vector<T>::size() - 1) {
         it = '\n';
       }
     }
   }
 
   inline void rangeCheck(size_t row) const {
-    if (row >= size()) {
+    if (row >= std::vector<T>::size()) {
       throw std::runtime_error("Row " + std::to_string(row) + " out of bounds");
     }
   }
 
   std::vector<std::string> header_;
-  std::vector<T> data_;
 };
 
 }  // namespace pHcsv
