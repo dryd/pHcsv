@@ -86,13 +86,13 @@ int assert_typed_wiki(pHcsv::typed<Car>& data) {
   return 0;
 }
 
-Car parseCar(const std::map<std::string, std::string>& row) {
+Car parseCar(const pHcsv::dynamic_row& row) {
   Car car;
-  car.year = std::stoi(row.at("Year"));
+  car.year = row.get<int>("Year");
   car.make = row.at("Make");
   car.model = row.at("Model");
   car.description = row.at("Description");
-  car.price = std::stod(row.at("Price"));
+  car.price = row.get<double>(4);
   car.extras = row.at("Extras");
   return car;
 }
@@ -148,7 +148,7 @@ int test_typed_wiki_no_header() {
 
 int test_streaming() {
   std::map<int, std::vector<Car>> cheap_cars_by_year;
-  pHcsv::streamRows("../dcsv/test_data/wiki.csv", [&cheap_cars_by_year] (const std::map<std::string, std::string>& row) {
+  pHcsv::streamRows("../dcsv/test_data/wiki.csv", [&cheap_cars_by_year] (const pHcsv::dynamic_row& row) {
     if (std::stod(row.at("Price")) < 4800.0) {
       cheap_cars_by_year[std::stoi(row.at("Year"))].push_back(parseCar(row));
     }

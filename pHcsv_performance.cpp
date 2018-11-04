@@ -37,38 +37,38 @@ struct SSO {
     double level_of_confidence;
 };
 
-SSO convertFromMap(const std::map<std::string, std::string> row) {
+SSO convertFromDynamic(const pHcsv::dynamic_row& row) {
     SSO sso;
     sso.solution_id = row.at("solution_id");
     sso.source_id = row.at("source_id");
     sso.observation_id = row.at("observation_id");
-    sso.number_mp = pHcsv::detail::convert<size_t>(row.at("number_mp"));
-    sso.epoch = pHcsv::detail::convert<double>(row.at("epoch"));
-    sso.epoch_err = pHcsv::detail::convert<double>(row.at("epoch_err"));
-    sso.epoch_utc = pHcsv::detail::convert<double>(row.at("epoch_utc"));
-    sso.ra = pHcsv::detail::convert<double>(row.at("ra"));
-    sso.dec = pHcsv::detail::convert<double>(row.at("dec"));
-    sso.ra_error_systematic = pHcsv::detail::convert<double>(row.at("ra_error_systematic"));
-    sso.dec_error_systematic = pHcsv::detail::convert<double>(row.at("dec_error_systematic"));
-    sso.ra_dec_correlation_systematic = pHcsv::detail::convert<double>(row.at("ra_dec_correlation_systematic"));
-    sso.ra_error_random = pHcsv::detail::convert<double>(row.at("ra_error_random"));
-    sso.dec_error_random = pHcsv::detail::convert<double>(row.at("dec_error_random"));
-    sso.ra_dec_correlation_random = pHcsv::detail::convert<double>(row.at("ra_dec_correlation_random"));
-    sso.g_mag = row.at("g_mag").empty() ? 0.0 : pHcsv::detail::convert<double>(row.at("g_mag"));
-    sso.g_flux = row.at("g_flux").empty() ? 0.0 : pHcsv::detail::convert<double>(row.at("g_flux"));
-    sso.g_flux_error = row.at("g_flux_error").empty() ? 0.0 : pHcsv::detail::convert<double>(row.at("g_flux_error"));
-    sso.x_gaia = pHcsv::detail::convert<double>(row.at("x_gaia"));
-    sso.y_gaia = pHcsv::detail::convert<double>(row.at("y_gaia"));
-    sso.z_gaia = pHcsv::detail::convert<double>(row.at("z_gaia"));
-    sso.vx_gaia = pHcsv::detail::convert<double>(row.at("vx_gaia"));
-    sso.vy_gaia = pHcsv::detail::convert<double>(row.at("vy_gaia"));
-    sso.vz_gaia = pHcsv::detail::convert<double>(row.at("vz_gaia"));
-    sso.position_angle_scan = pHcsv::detail::convert<double>(row.at("position_angle_scan"));
-    sso.level_of_confidence = pHcsv::detail::convert<double>(row.at("level_of_confidence"));
+    sso.number_mp = row.get<size_t>("number_mp");
+    sso.epoch = row.get<double>("epoch");
+    sso.epoch_err = row.get<double>("epoch_err");
+    sso.epoch_utc = row.get<double>("epoch_utc");
+    sso.ra = row.get<double>("ra");
+    sso.dec = row.get<double>("dec");
+    sso.ra_error_systematic = row.get<double>("ra_error_systematic");
+    sso.dec_error_systematic = row.get<double>("dec_error_systematic");
+    sso.ra_dec_correlation_systematic = row.get<double>("ra_dec_correlation_systematic");
+    sso.ra_error_random = row.get<double>("ra_error_random");
+    sso.dec_error_random = row.get<double>("dec_error_random");
+    sso.ra_dec_correlation_random = row.get<double>("ra_dec_correlation_random");
+    sso.g_mag = row.at("g_mag").empty() ? 0.0 : row.get<double>("g_mag");
+    sso.g_flux = row.at("g_flux").empty() ? 0.0 : row.get<double>("g_flux");
+    sso.g_flux_error = row.at("g_flux_error").empty() ? 0.0 : row.get<double>("g_flux_error");
+    sso.x_gaia = row.get<double>("x_gaia");
+    sso.y_gaia = row.get<double>("y_gaia");
+    sso.z_gaia = row.get<double>("z_gaia");
+    sso.vx_gaia = row.get<double>("vx_gaia");
+    sso.vy_gaia = row.get<double>("vy_gaia");
+    sso.vz_gaia = row.get<double>("vz_gaia");
+    sso.position_angle_scan = row.get<double>("position_angle_scan");
+    sso.level_of_confidence = row.get<double>("level_of_confidence");
     return sso;
 }
 
-SSO convertFromVec(const std::vector<std::string> row) {
+SSO convertFromVec(const std::vector<std::string>& row) {
     SSO sso;
     sso.solution_id = row.at(0);
     sso.source_id = row.at(1);
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
     }
     if (mode == 1) {
         auto start = std::chrono::high_resolution_clock::now();
-        pHcsv::typed<SSO> data("test_data/SsoObservation.csv", convertFromMap);
+        pHcsv::typed<SSO> data("test_data/SsoObservation.csv", convertFromDynamic);
         logPerf("pHcsv::typed<SSO>", start);
 
         start = std::chrono::high_resolution_clock::now();
@@ -144,8 +144,8 @@ int main(int argc, char** argv) {
     if (mode == 3) {
         auto start = std::chrono::high_resolution_clock::now();
         std::vector<SSO> data;
-        pHcsv::streamRows("test_data/SsoObservation.csv", [&data] (const std::map<std::string, std::string>& row) {
-            data.push_back(convertFromMap(row));
+        pHcsv::streamRows("test_data/SsoObservation.csv", [&data] (const pHcsv::dynamic_row& row) {
+            data.push_back(convertFromDynamic(row));
         });
         logPerf("pHcsv::streamRows", start);
     }
