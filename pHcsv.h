@@ -4,6 +4,7 @@
 #include <iterator>
 #include <fstream>
 #include <algorithm>
+#include <functional>
 
 namespace pHcsv {
 
@@ -176,11 +177,11 @@ class dynamic {
     readStream(in, has_header);
   }
 
-  void write(std::ostream& out, bool with_header) {
+  void write(std::ostream& out, bool with_header) const {
     writeStream(out, with_header);
   }
 
-  void write(const std::string& filename, bool with_header) {
+  void write(const std::string& filename, bool with_header) const {
     std::ofstream out(filename, std::ios::out | std::ios::binary);
     writeStream(out, with_header);
   }
@@ -267,9 +268,9 @@ class dynamic {
     }
   }
 
-  void writeStream(std::ostream& out, bool with_header) {
+  void writeStream(std::ostream& out, bool with_header) const {
     if (out.bad() || out.fail()) {
-      throw std::runtime_error("Bad output file");
+      throw std::runtime_error("Bad output");
     }
     std::ostreambuf_iterator<char> it(out);
     if (with_header) {
@@ -299,6 +300,154 @@ class dynamic {
 
   std::vector<std::string> header_;
   std::vector<std::vector<std::string>> data_;
+};
+
+template <typename T>
+class typed {
+ public:
+  typed(const std::string& filename, std::function<T(const std::map<std::string, std::string>&)> parse_func) {
+    std::ifstream in(filename, std::ios::in | std::ios::binary);
+    readStreamWithHeader(in, parse_func);
+  }
+
+  typed(std::ifstream& in, std::function<T(const std::map<std::string, std::string>&)> parse_func) {
+    readStreamWithHeader(in, parse_func);
+  }
+
+  typed(const std::string& filename, std::function<T(const std::vector<std::string>&)> parse_func) {
+    std::ifstream in(filename, std::ios::in | std::ios::binary);
+    readStreamNoHeader(in, parse_func);
+  }
+
+  typed(std::ifstream& in, std::function<T(const std::vector<std::string>&)> parse_func) {
+    readStreamNoHeader(in, parse_func);
+  }
+
+  void write(const std::string& filename, std::function<std::map<std::string, std::string>(const T&)> map_func) const {
+    std::ofstream out(filename, std::ios::out | std::ios::binary);
+    writeStreamWithHeader(out, map_func);
+  }
+
+  void write(std::ofstream& out, std::function<std::map<std::string, std::string>(const T&)> map_func) const {
+    writeStreamWithHeader(out, map_func);
+  }
+
+  void write(const std::string& filename, std::function<std::vector<std::string>(const T&)> vector_func) const {
+    std::ofstream out(filename, std::ios::out | std::ios::binary);
+    writeStreamNoHeader(out, vector_func);
+  }
+
+  void write(std::ofstream& out, std::function<std::vector<std::string>(const T&)> vector_func) const {
+    writeStreamNoHeader(out, vector_func);
+  }
+
+  inline size_t size() const {
+    return data_.size();
+  }
+
+  inline T& at(size_t row) {
+    rangeCheck(row);
+    return data_[row];
+  }
+
+  inline const T& at(size_t row) const {
+    rangeCheck(row);
+    return data_[row];
+  }
+
+  inline const std::vector<T>& data() const {
+    return data_;
+  }
+
+  inline std::vector<T>& data() {
+    return data_;
+  }
+
+  template <typename... Args>
+  inline T& emplace_back(Args&&... args) {
+    data_.emplace_back(std::forward<Args>(args)...);
+    return data_.back();
+  }
+
+ private:
+  void readStreamWithHeader(std::istream& in, std::function<T(const std::map<std::string, std::string>&)> parse_func) {
+    if (in.bad() || in.fail()) {
+      throw std::runtime_error("Bad input");
+    }
+    std::istreambuf_iterator<char> it(in);
+    if (it == detail::EOCSVF) {
+      return;
+    }
+    header_ = detail::readCsvRow(it);
+    while (it != detail::EOCSVF) {
+      std::map<std::string, std::string> row;
+      bool new_row = false;
+      size_t h = 0;
+      while (it != detail::EOCSVF && !new_row) {
+        row.emplace(header_.at(h), detail::readCsvField(it, new_row));
+        h++;
+      }
+      for (; h < header_.size(); h++) {
+        row.emplace(header_.at(h), "");
+      }
+      data_.push_back(parse_func(row));
+    }
+  }
+
+  void readStreamNoHeader(std::istream& in, std::function<T(const std::vector<std::string>&)> parse_func) {
+    if (in.bad() || in.fail()) {
+      throw std::runtime_error("Bad input");
+    }
+    std::istreambuf_iterator<char> it(in);
+    while (it != detail::EOCSVF) {
+      data_.push_back(parse_func(detail::readCsvRow(it)));
+    }
+  }
+
+  void writeStreamWithHeader(std::ofstream& out, std::function<std::map<std::string, std::string>(const T&)> map_func) const {
+    if (out.bad() || out.fail()) {
+      throw std::runtime_error("Bad output");
+    }
+    std::ostreambuf_iterator<char> it(out);
+    detail::writeCsvRow(it, header_);
+    it = '\n';
+    for (size_t i = 0; i < data_.size(); i++) {
+      std::map<std::string, std::string> data_map = map_func(data_.at(i));
+      std::vector<std::string> row(header_.size(), "");
+      for (size_t h = 0; h < header_.size(); h++) {
+        auto it = data_map.find(header_.at(h));
+        if (it != data_map.end()) {
+          row.at(h) = it->second;
+        }
+      }
+      detail::writeCsvRow(it, row);
+      if (i != data_.size() - 1) {
+        it = '\n';
+      }
+    }
+  }
+
+  void writeStreamNoHeader(std::ofstream& out, std::function<std::vector<std::string>(const T&)> vector_func) const {
+    if (out.bad() || out.fail()) {
+      throw std::runtime_error("Bad output");
+    }
+    std::ostreambuf_iterator<char> it(out);
+    for (size_t i = 0; i < data_.size(); i++) {
+      detail::writeCsvRow(it, vector_func(data_.at(i)));
+      if (i != data_.size() - 1) {
+        it = '\n';
+      }
+    }
+  }
+
+  inline void rangeCheck(size_t row) const {
+    if (row >= size()) {
+      throw std::runtime_error("Row " + std::to_string(row) + " out of bounds");
+    }
+  }
+
+  std::vector<std::string> header_;
+  std::vector<T> data_;
 };
 
 }  // namespace pHcsv
