@@ -36,9 +36,10 @@ int test_dynamic_wiki() {
 
   // Test add data
   data.addRow();
+  ASSERT_EQ(data.size(), 5);
   data.at(4, "Price") = "4200.00";
   ASSERT_EQ(data.get<double>(4, "Price"), 4200.0);
-  data.addHeader("CC");
+  data.addColumn("CC");
   ASSERT_EQ(data.get<std::string>(3, "CC"), "");
   data.at(4, "CC") = "3997";
   ASSERT_EQ(data.get<double>(4, "CC"), 3997.0);
@@ -51,6 +52,14 @@ int test_dynamic_wiki() {
     return 1;
   }
   std::remove("../dcsv/test_data/wiki_written.csv");
+
+  data.removeRow(2);
+  ASSERT_EQ(data.size(), 4);
+  ASSERT_EQ(data.at(2, "Make"), "Jeep");
+  ASSERT_EQ(data.at(2, 1), "Jeep");
+
+  data.removeColumn("Make");
+  ASSERT_EQ(data.at(2, 1), "Grand Cherokee");
 
   return 0;
 }
@@ -136,7 +145,7 @@ int test_typed_wiki_no_header() {
   pHcsv::typed<Car> data("../dcsv/test_data/wiki_no_header.csv", parseCarFromVec);
   int status = assert_typed_wiki(data);
   data.write("../dcsv/test_data/wiki_written.csv", [] (const Car& car) {
-    return std::vector<std::string>{std::to_string(car.year), car.make, car.model, car.description, std::to_string(car.price), car.extras};
+    return std::vector<std::string>{ std::to_string(car.year), car.make, car.model, car.description, std::to_string(car.price), car.extras };
   });
   pHcsv::typed<Car> written_data("../dcsv/test_data/wiki_written.csv", parseCarFromVec);
   const std::vector<Car>& cars = written_data;
@@ -149,8 +158,8 @@ int test_typed_wiki_no_header() {
 int test_streaming() {
   std::map<int, std::vector<Car>> cheap_cars_by_year;
   pHcsv::streamRows("../dcsv/test_data/wiki.csv", [&cheap_cars_by_year] (const pHcsv::dynamic_row& row) {
-    if (std::stod(row.at("Price")) < 4800.0) {
-      cheap_cars_by_year[std::stoi(row.at("Year"))].push_back(parseCar(row));
+    if (row.get<double>("Price") < 4800.0) {
+      cheap_cars_by_year[row.get<int>("Year")].push_back(parseCar(row));
     }
   });
   ASSERT_EQ(cheap_cars_by_year.size(), 2);

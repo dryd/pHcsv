@@ -175,7 +175,12 @@ inline size_t convert(const std::string& str) {
 
 class dynamic_row {
  public:
-  dynamic_row(const std::vector<std::string>& header, std::vector<std::string> data) : header_(header), data_(std::move(data)) {}
+  dynamic_row(std::vector<std::string>& header, std::vector<std::string> data) : header_(header), data_(std::move(data)) {}
+
+  void operator=(const dynamic_row& other) {
+    header_ = other.header_;
+    data_ = other.data_;
+  }
 
   inline size_t headerIndex(const std::string& column) const {
     for (size_t i = 0; i < header_.size(); i++) {
@@ -226,6 +231,10 @@ class dynamic_row {
     data_.emplace_back();
   }
 
+  inline void erase(size_t index) {
+    data_.erase(data_.begin() + static_cast<long>(index));
+  }
+
   inline const std::vector<std::string>& data() const {
     return data_;
   }
@@ -235,7 +244,7 @@ class dynamic_row {
   }
 
  private:
-  const std::vector<std::string>& header_;
+  std::vector<std::string>& header_;
   std::vector<std::string> data_;
 };
 
@@ -292,15 +301,42 @@ class dynamic {
     data_.emplace_back(header_, std::vector<std::string>(header_.size(), ""));
   }
 
-  inline void addHeader(const std::string& column) {
+  inline void removeRow(size_t row) {
+    rangeCheck(row);
+    data_.erase(data_.begin() + static_cast<long>(row));
+  }
+
+  inline void addColumn(const std::string& column) {
     if (header_.empty()) {
-      throw std::runtime_error("Can't add header to pHcsv::dynamic without headers");
+      throw std::runtime_error("Cannot add column to pHcsv::dynamic without headers");
     }
     if (std::find(header_.begin(), header_.end(), column) == header_.end()) {
       header_.push_back(column);
       for (auto& row : data_) {
         row.emplace_back();
       }
+    }
+  }
+
+  inline void addColumn() {
+    if (!header_.empty()) {
+      throw std::runtime_error("Must specify header name when adding column to pHcsv::dynamic withheaders");
+    }
+    for (auto& row : data_) {
+      row.emplace_back();
+    }
+  }
+
+  inline void removeColumn(const std::string& column) {
+    auto it = std::find(header_.begin(), header_.end(), column);
+    if (it == header_.end()) {
+      throw std::runtime_error("Header " + column + " not found in pHcsv::removeColumn");
+    }
+    size_t index = static_cast<size_t>(std::distance(header_.begin(), it));
+
+    header_.erase(it);
+    for (auto& row : data_) {
+      row.erase(index);
     }
   }
 
