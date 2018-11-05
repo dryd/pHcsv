@@ -175,35 +175,10 @@ inline size_t convert(const std::string& str) {
 
 class dynamic_row {
  public:
-  dynamic_row(std::vector<std::string>& header, std::vector<std::string> data) : header_(header), data_(std::move(data)) {}
-
-  void operator=(const dynamic_row& other) {
-    header_ = other.header_;
-    data_ = other.data_;
-  }
-
-  inline size_t headerIndex(const std::string& column) const {
-    for (size_t i = 0; i < header_.size(); i++) {
-      if (header_.at(i) == column) {
-        return i;
-      }
-    }
-    throw std::runtime_error("Unrecognized column " + column);
-  }
+  dynamic_row(const std::vector<std::string>& header, const std::vector<std::string>& data) : header_(header), data_(data) {}
 
   inline size_t size() const {
     return data_.size();
-  }
-
-  inline std::string& at(const std::string& column) {
-    return data_[headerIndex(column)];
-  }
-
-  inline std::string& at(size_t column) {
-    if (column >= data_.size()) {
-      throw std::runtime_error("Column " + std::to_string(column) + " out of bounds");
-    }
-    return data_[column];
   }
 
   inline const std::string& at(const std::string& column) const {
@@ -227,25 +202,22 @@ class dynamic_row {
     return detail::convert<T>(at(column));
   }
 
-  inline void emplace_back() {
-    data_.emplace_back();
-  }
-
-  inline void erase(size_t index) {
-    data_.erase(data_.begin() + static_cast<long>(index));
-  }
-
   inline const std::vector<std::string>& data() const {
     return data_;
   }
 
-  bool operator==(const dynamic_row& other) const {
-    return data_ == other.data_;
+ private:
+  inline size_t headerIndex(const std::string& column) const {
+    for (size_t i = 0; i < header_.size(); i++) {
+      if (header_.at(i) == column) {
+        return i;
+      }
+    }
+    throw std::runtime_error("Unrecognized column " + column);
   }
 
- private:
-  std::vector<std::string>& header_;
-  std::vector<std::string> data_;
+  const std::vector<std::string>& header_;
+  const std::vector<std::string>& data_;
 };
 
 class dynamic {
@@ -282,33 +254,28 @@ class dynamic {
   }
 
   inline std::string& at(size_t row, const std::string& column) {
-    return at(row).at(column);
+    return data_.at(row).at(headerIndex(column));
   }
 
   inline const std::string& at(size_t row, const std::string& column) const {
-    return at(row).at(column);
+    return data_.at(row).at(headerIndex(column));
   }
 
   inline std::string& at(size_t row, size_t column) {
-    return at(row).at(column);
+    return data_.at(row).at(column);
   }
 
   inline const std::string& at(size_t row, size_t column) const {
-    return at(row).at(column);
+    return data_.at(row).at(column);
   }
 
-  inline void addRow() {
-    data_.emplace_back(header_, std::vector<std::string>(header_.size(), ""));
+  inline void emplace_back() {
+    data_.emplace_back(std::vector<std::string>(header_.size(), ""));
   }
 
-  inline void removeRow(size_t row) {
-    rangeCheck(row);
-    data_.erase(data_.begin() + static_cast<long>(row));
-  }
-
-  inline void addColumn(const std::string& column) {
+  inline void addHeader(const std::string& column) {
     if (header_.empty()) {
-      throw std::runtime_error("Cannot add column to pHcsv::dynamic without headers");
+      throw std::runtime_error("Can't add header to pHcsv::dynamic without headers");
     }
     if (std::find(header_.begin(), header_.end(), column) == header_.end()) {
       header_.push_back(column);
@@ -318,36 +285,14 @@ class dynamic {
     }
   }
 
-  inline void addColumn() {
-    if (!header_.empty()) {
-      throw std::runtime_error("Must specify header name when adding column to pHcsv::dynamic withheaders");
-    }
-    for (auto& row : data_) {
-      row.emplace_back();
-    }
-  }
-
-  inline void removeColumn(const std::string& column) {
-    auto it = std::find(header_.begin(), header_.end(), column);
-    if (it == header_.end()) {
-      throw std::runtime_error("Header " + column + " not found in pHcsv::removeColumn");
-    }
-    size_t index = static_cast<size_t>(std::distance(header_.begin(), it));
-
-    header_.erase(it);
-    for (auto& row : data_) {
-      row.erase(index);
-    }
-  }
-
   template <typename T = std::string>
   inline T get(size_t row, const std::string& column) const {
-    return at(row).get<T>(column);
+    return dynamic_row(header_, data_.at(row)).get<T>(column);
   }
 
   template <typename T = std::string>
   inline T get(size_t row, size_t column) const {
-    return at(row).get<T>(column);
+    return dynamic_row(header_, data_.at(row)).get<T>(column);
   }
 
   bool operator==(const dynamic& other) const {
@@ -359,15 +304,6 @@ class dynamic {
   }
 
  private:
-  inline const dynamic_row& at(size_t row) const {
-    rangeCheck(row);
-    return data_[row];
-  }
-  inline dynamic_row& at(size_t row) {
-    rangeCheck(row);
-    return data_[row];
-  }
-
   void readStream(std::istream& in, bool has_header) {
     if (in.bad() || in.fail()) {
       throw std::runtime_error("Bad input");
@@ -377,7 +313,7 @@ class dynamic {
       header_ = detail::readCsvRow(it);
     }
     while (it != detail::EOCSVF) {
-      data_.emplace_back(header_, detail::readCsvRow(it, header_.size()));
+      data_.push_back(detail::readCsvRow(it, header_.size()));
     }
   }
 
@@ -391,28 +327,15 @@ class dynamic {
       it = '\n';
     }
     for (size_t i = 0; i < data_.size(); i++) {
-      detail::writeCsvRow(it, data_.at(i).data());
+      detail::writeCsvRow(it, data_.at(i));
       if (i != data_.size() - 1) {
         it = '\n';
       }
     }
   }
 
-  inline void rangeCheck(size_t row) const {
-    if (row >= size()) {
-      throw std::runtime_error("Row " + std::to_string(row) + " out of bounds");
-    }
-  }
-
-  inline void rangeCheck(size_t row, size_t col) const {
-    rangeCheck(row);
-    if (col >= data_[row].size()) {
-      throw std::runtime_error("Column " + std::to_string(col) + " out of bounds");
-    }
-  }
-
   std::vector<std::string> header_;
-  std::vector<dynamic_row> data_;
+  std::vector<std::vector<std::string>> data_;
 };
 
 template <typename T>
