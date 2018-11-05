@@ -111,18 +111,18 @@ int main(int argc, char** argv) {
 
         start = std::chrono::high_resolution_clock::now();
         double avg = 0.0;
-        for (size_t i = 0; i < data.size(); i++) {
+        for (size_t i = 0; i < data.rows(); i++) {
             avg += data.get<double>(i, "x_gaia");
         }
-        logPerf("pHcsv::mapped avg method 0 (" + std::to_string(avg/static_cast<double>(data.size())) + ")", start);
+        logPerf("pHcsv::mapped avg method 0 (" + std::to_string(avg/static_cast<double>(data.rows())) + ")", start);
 
         start = std::chrono::high_resolution_clock::now();
         avg = 0.0;
         size_t x_gaia_index = data.headerIndex("x_gaia");
-        for (size_t i = 0; i < data.size(); i++) {
+        for (size_t i = 0; i < data.rows(); i++) {
             avg += data.get<double>(i, x_gaia_index);
         }
-        logPerf("pHcsv::mapped avg method 1 (" + std::to_string(avg / static_cast<double>(data.size())) + ")", start);
+        logPerf("pHcsv::mapped avg method 1 (" + std::to_string(avg / static_cast<double>(data.rows())) + ")", start);
     }
     if (mode == 1) {
         auto start = std::chrono::high_resolution_clock::now();

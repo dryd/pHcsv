@@ -12,10 +12,12 @@ inline std::string toString(const std::string& val) {
 
 #define ASSERT_EQ(expr, expected) if ((expr) != (expected)) { printf("Assert failed at line %d:\n  %s != %s\n", __LINE__, toString(expr).c_str(), #expected); return 1; }
 
-int test_dynamic_wiki() {
+int test_mapped_wiki() {
   pHcsv::mapped data("../dcsv/test_data/wiki.csv");
 
   // Test get() and at()
+  ASSERT_EQ(data.rows(), 4);
+  ASSERT_EQ(data.columns(), 6);
   ASSERT_EQ(data.at(0, "Extras"), "steering \"wheel\"");
   ASSERT_EQ(data.at(0, "Extras"), data.at(0, 5));
   ASSERT_EQ(data.at(0, "Extras"), data.get(0, "Extras"));
@@ -36,9 +38,11 @@ int test_dynamic_wiki() {
 
   // Test add data
   data.emplaceRow();
+  ASSERT_EQ(data.rows(), 5);
   data.at(4, "Price") = "4200.00";
   ASSERT_EQ(data.get<double>(4, "Price"), 4200.0);
   data.emplaceColumn("CC");
+  ASSERT_EQ(data.columns(), 7);
   ASSERT_EQ(data.get<std::string>(3, "CC"), "");
   data.at(4, "CC") = "3997";
   ASSERT_EQ(data.get<double>(4, "CC"), 3997.0);
@@ -51,6 +55,43 @@ int test_dynamic_wiki() {
     return 1;
   }
   std::remove("../dcsv/test_data/wiki_written.csv");
+
+  return 0;
+}
+
+int test_flat_wiki() {
+  pHcsv::flat data("../dcsv/test_data/wiki_no_header.csv");
+
+  // Test get() and at()
+  ASSERT_EQ(data.rows(), 4);
+  ASSERT_EQ(data.columns(), 6);
+  ASSERT_EQ(data.at(0, 5), "steering \"wheel\"");
+  ASSERT_EQ(data.get(0, 5), data.at(0, 5));
+
+  ASSERT_EQ(data.get<int>(0, 0), 1997);
+  ASSERT_EQ(data.get<size_t>(3, 0), 1996);
+  ASSERT_EQ(data.get<float>(3, 4), 4799.0f);
+  ASSERT_EQ(data.get<double>(1, 4), 4900.0);
+
+  // Test add data
+  data.emplaceRow();
+  ASSERT_EQ(data.rows(), 5);
+  data.at(4, 4) = "4200.00";
+  ASSERT_EQ(data.get<double>(4, 4), 4200.0);
+  data.resizeColumns(7);
+  ASSERT_EQ(data.columns(), 7);
+  ASSERT_EQ(data.get<std::string>(3, 6), "");
+  data.at(4, 6) = "3997";
+  ASSERT_EQ(data.get<double>(4, 6), 3997.0);
+
+  // Test write()
+  data.write("../dcsv/test_data/wiki_written.csv");
+  pHcsv::flat written_data("../dcsv/test_data/wiki_written.csv");
+  if (data != written_data) {
+    printf("Written data does not match data\n");
+    return 1;
+  }
+  //std::remove("../dcsv/test_data/wiki_written.csv");
 
   return 0;
 }
@@ -113,5 +154,5 @@ int test_streaming() {
 }
 
 int main() {
-  return test_dynamic_wiki() + test_streaming();
+  return test_mapped_wiki() + test_flat_wiki() + test_streaming();
 }

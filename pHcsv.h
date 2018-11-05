@@ -254,15 +254,15 @@ class mapped_row {
 
 class flat {
  public:
-  flat() : data_() {}
+  flat() : data_(), columns_(0) {}
 
-  flat(std::istream& in) : data_() {
-    detail::readStream(in, data_);
+  flat(std::istream& in) : data_(), columns_(0) {
+    read(in);
   }
 
-  flat(const std::string& filename) : data_() {
+  flat(const std::string& filename) : data_(), columns_(0) {
     std::ifstream in(filename, std::ios::in | std::ios::binary);
-    detail::readStream(in, data_);
+    read(in);
   }
 
   virtual void write(std::ostream& out) const {
@@ -274,8 +274,16 @@ class flat {
     detail::writeStream(out, data_);
   }
 
-  inline size_t size() const {
+  inline size_t rows() const {
     return data_.size();
+  }
+
+  virtual inline size_t columns() const {
+    return columns_;
+  }
+
+  inline size_t columns(size_t row) const {
+    return data_.at(row).size();
   }
 
   inline std::string& at(size_t row, size_t column) {
@@ -286,13 +294,18 @@ class flat {
     return data_.at(row).at(column);
   }
 
-  virtual void emplaceRow() {
-    data_.emplace_back();
+  void emplaceRow(size_t columns) {
+    data_.emplace_back(columns);
   }
 
-  virtual void emplaceColumn() {
+  virtual void emplaceRow() {
+    data_.emplace_back(columns_);
+  }
+
+  virtual void resizeColumns(size_t size) {
+    columns_ = size;
     for (auto& row : data_) {
-      row.emplace_back();
+      row.resize(size);
     }
   }
 
@@ -310,8 +323,19 @@ class flat {
   }
 
   virtual ~flat() = default;
+
  protected:
   std::vector<std::vector<std::string>> data_;
+
+ private:
+  void read(std::istream& in) {
+    detail::readStream(in, data_);
+    for (const auto& row : data_) {
+      columns_ = std::max(columns_, row.size());
+    }
+  }
+
+  size_t columns_;
 };
 
 class mapped : public flat {
@@ -334,6 +358,15 @@ class mapped : public flat {
     detail::writeStream(out, data_, &header_);
   }
 
+  void write(std::ostream& out, bool ignore_header) const {
+    detail::writeStream(out, data_, ignore_header ? nullptr : &header_);
+  }
+
+  void write(const std::string& filename, bool ignore_header) const {
+    std::ofstream out(filename, std::ios::out | std::ios::binary);
+    detail::writeStream(out, data_, ignore_header ? nullptr : &header_);
+  }
+
   inline size_t headerIndex(const std::string& column) const {
     for (size_t i = 0; i < header_.size(); i++) {
       if (header_.at(i) == column) {
@@ -353,12 +386,17 @@ class mapped : public flat {
     return data_.at(row).at(headerIndex(column));
   }
 
-  virtual void emplaceRow() override {
+  void emplaceRow() override {
     data_.emplace_back(header_.size(), "");
   }
 
-  virtual void emplaceColumn() override {
-    throw std::runtime_error("pHcsv::mapped does not implement emplaceColumn() with no argument");
+  void resizeColumns(size_t size) override {
+    header_.resize(size);
+    flat::resizeColumns(size);
+  }
+
+  inline size_t columns() const override {
+    return header_.size();
   }
 
   inline void emplaceColumn(const std::string& column) {
