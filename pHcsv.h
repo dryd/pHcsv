@@ -177,80 +177,13 @@ template<typename T>
 inline T convert(const std::string& str) {
   return T(str);  // hope it's constructible with a string...
 }
-
-template <>
-inline std::string convert(const std::string& str) {
-  return str;
-}
-
-template <>
-inline double convert(const std::string& str) {
-  return std::stod(str);
-}
-
-template <>
-inline float convert(const std::string& str) {
-  return std::stof(str);
-}
-
-template <>
-inline int convert(const std::string& str) {
-  return std::stoi(str);
-}
-
-template <>
-inline size_t convert(const std::string& str) {
-  return static_cast<size_t>(std::stoul(str));
-}
+template <> inline std::string convert(const std::string& str) { return str; }
+template <> inline double convert(const std::string& str) { return std::stod(str); }
+template <> inline float convert(const std::string& str) { return std::stof(str); }
+template <> inline int convert(const std::string& str) { return std::stoi(str); }
+template <> inline size_t convert(const std::string& str) { return static_cast<size_t>(std::stoul(str)); }
 
 }  // namespace detail
-
-class mapped_row {
- public:
-  mapped_row(const std::vector<std::string>& header, const std::vector<std::string>& data) : header_(header), data_(data) {}
-
-  inline size_t size() const {
-    return data_.size();
-  }
-
-  inline const std::string& at(const std::string& column) const {
-    return data_[headerIndex(column)];
-  }
-
-  inline const std::string& at(size_t column) const {
-    if (column >= data_.size()) {
-      throw std::runtime_error("Column " + std::to_string(column) + " out of bounds");
-    }
-    return data_[column];
-  }
-
-  template <typename T = std::string>
-  inline T get(const std::string& column) const {
-    return detail::convert<T>(at(column));
-  }
-
-  template <typename T = std::string>
-  inline T get(size_t column) const {
-    return detail::convert<T>(at(column));
-  }
-
-  inline const std::vector<std::string>& data() const {
-    return data_;
-  }
-
- private:
-  inline size_t headerIndex(const std::string& column) const {
-    for (size_t i = 0; i < header_.size(); i++) {
-      if (header_.at(i) == column) {
-        return i;
-      }
-    }
-    throw std::runtime_error("Unrecognized column " + column);
-  }
-
-  const std::vector<std::string>& header_;
-  const std::vector<std::string>& data_;
-};
 
 class flat {
  public:
@@ -336,6 +269,53 @@ class flat {
   }
 
   size_t columns_;
+};
+
+class mapped_row {
+ public:
+  mapped_row(const std::vector<std::string>& header, const std::vector<std::string>& data) : header_(header), data_(data) {}
+
+  inline size_t size() const {
+    return data_.size();
+  }
+
+  inline const std::string& at(const std::string& column) const {
+    return data_[headerIndex(column)];
+  }
+
+  inline const std::string& at(size_t column) const {
+    if (column >= data_.size()) {
+      throw std::runtime_error("Column " + std::to_string(column) + " out of bounds");
+    }
+    return data_[column];
+  }
+
+  template <typename T = std::string>
+  inline T get(const std::string& column) const {
+    return detail::convert<T>(at(column));
+  }
+
+  template <typename T = std::string>
+  inline T get(size_t column) const {
+    return detail::convert<T>(at(column));
+  }
+
+  inline const std::vector<std::string>& data() const {
+    return data_;
+  }
+
+ private:
+  inline size_t headerIndex(const std::string& column) const {
+    for (size_t i = 0; i < header_.size(); i++) {
+      if (header_.at(i) == column) {
+        return i;
+      }
+    }
+    throw std::runtime_error("Unrecognized column " + column);
+  }
+
+  const std::vector<std::string>& header_;
+  const std::vector<std::string>& data_;
 };
 
 class mapped : public flat {
