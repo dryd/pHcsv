@@ -37,7 +37,7 @@ struct SSO {
     double level_of_confidence;
 };
 
-SSO convertFromDynamic(const pHcsv::dynamic_row& row) {
+SSO convertFromDynamic(const pHcsv::mapped_row& row) {
     SSO sso;
     sso.solution_id = row.at("solution_id");
     sso.source_id = row.at("source_id");
@@ -106,15 +106,15 @@ int main(int argc, char** argv) {
     int mode = atoi(argv[1]);
     if (mode == 0) {
         auto start = std::chrono::high_resolution_clock::now();
-        pHcsv::dynamic data("test_data/SsoObservation.csv", true);
-        logPerf("pHcsv::dynamic", start);
+        pHcsv::mapped data("test_data/SsoObservation.csv");
+        logPerf("pHcsv::mapped", start);
 
         start = std::chrono::high_resolution_clock::now();
         double avg = 0.0;
         for (size_t i = 0; i < data.size(); i++) {
             avg += data.get<double>(i, "x_gaia");
         }
-        logPerf("pHcsv::dynamic avg method 0 (" + std::to_string(avg/static_cast<double>(data.size())) + ")", start);
+        logPerf("pHcsv::mapped avg method 0 (" + std::to_string(avg/static_cast<double>(data.size())) + ")", start);
 
         start = std::chrono::high_resolution_clock::now();
         avg = 0.0;
@@ -122,34 +122,29 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < data.size(); i++) {
             avg += data.get<double>(i, x_gaia_index);
         }
-        logPerf("pHcsv::dynamic avg method 1 (" + std::to_string(avg / static_cast<double>(data.size())) + ")", start);
+        logPerf("pHcsv::mapped avg method 1 (" + std::to_string(avg / static_cast<double>(data.size())) + ")", start);
     }
     if (mode == 1) {
         auto start = std::chrono::high_resolution_clock::now();
-        pHcsv::typed<SSO> data("test_data/SsoObservation.csv", convertFromDynamic);
-        logPerf("pHcsv::typed<SSO>", start);
-
-        start = std::chrono::high_resolution_clock::now();
-        double avg = 0.0;
-        for (const auto& sso : data) {
-            avg += sso.x_gaia;
-        }
-        logPerf("pHcsv::typed<SSO> avg (" + std::to_string(avg/static_cast<double>(data.size())) + ")", start);
+        pHcsv::flat data("test_data/SsoObservation_no_header.csv");
+        logPerf("pHcsv::flat", start);
     }
     if (mode == 2) {
         auto start = std::chrono::high_resolution_clock::now();
-        pHcsv::typed<SSO> data("test_data/SsoObservation_no_header.csv", convertFromVec);
-        logPerf("pHcsv::typed<SSO> (no_header)", start);
-    }
-    if (mode == 3) {
-        auto start = std::chrono::high_resolution_clock::now();
         std::vector<SSO> data;
-        pHcsv::streamRows("test_data/SsoObservation.csv", [&data] (const pHcsv::dynamic_row& row) {
+        pHcsv::streamRows("test_data/SsoObservation.csv", [&data] (const pHcsv::mapped_row& row) {
             data.push_back(convertFromDynamic(row));
         });
         logPerf("pHcsv::streamRows", start);
+
+        start = std::chrono::high_resolution_clock::now();
+        double avg = 0.0;
+        for (const SSO& sso : data) {
+            avg += sso.x_gaia;
+        }
+        logPerf("pHcsv::streamRows avg (" + std::to_string(avg/static_cast<double>(data.size())) + ")", start);
     }
-    if (mode == 4) {
+    if (mode == 3) {
         auto start = std::chrono::high_resolution_clock::now();
         std::vector<SSO> data;
         pHcsv::streamRows("test_data/SsoObservation_no_header.csv", [&data] (const std::vector<std::string>& row) {
@@ -164,7 +159,7 @@ int main(int argc, char** argv) {
         strStream << t.rdbuf();//read the file
 
         auto start = std::chrono::high_resolution_clock::now();
-        pHcsv::dynamic data(strStream, true);
+        pHcsv::mapped data(strStream);
         logPerf("From stringstream", start);
     }
 }

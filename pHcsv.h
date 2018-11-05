@@ -108,6 +108,21 @@ inline std::vector<std::string> readCsvRow(std::istreambuf_iterator<char>& it, s
   return result;
 }
 
+void readStream(std::istream& in, std::vector<std::vector<std::string>>& data, std::vector<std::string>* header = nullptr) {
+  if (in.bad() || in.fail()) {
+    throw std::runtime_error("Bad input");
+  }
+  std::istreambuf_iterator<char> it(in);
+  size_t header_size = 0;
+  if (header != nullptr && it != detail::EOCSVF) {
+    *header = detail::readCsvRow(it);
+    header_size = header->size();
+  }
+  while (it != detail::EOCSVF) {
+    data.push_back(detail::readCsvRow(it, header_size));
+  }
+}
+
 void writeCsvRow(std::ostreambuf_iterator<char>& it, const std::vector<std::string>& row) {
   for (size_t i = 0; i < row.size(); i++) {
     const auto& field = row.at(i);
@@ -137,6 +152,23 @@ void writeCsvRow(std::ostreambuf_iterator<char>& it, const std::vector<std::stri
     }
     if (i != row.size() - 1) {
       it = ',';
+    }
+  }
+}
+
+void writeStream(std::ostream& out, const std::vector<std::vector<std::string>>& data, const std::vector<std::string>* header = nullptr) {
+  if (out.bad() || out.fail()) {
+    throw std::runtime_error("Bad output");
+  }
+  std::ostreambuf_iterator<char> it(out);
+  if (header != nullptr) {
+    detail::writeCsvRow(it, *header);
+    it = '\n';
+  }
+  for (size_t i = 0; i < data.size(); i++) {
+    detail::writeCsvRow(it, data.at(i));
+    if (i != data.size() - 1) {
+      it = '\n';
     }
   }
 }
@@ -173,9 +205,9 @@ inline size_t convert(const std::string& str) {
 
 }  // namespace detail
 
-class dynamic_row {
+class mapped_row {
  public:
-  dynamic_row(const std::vector<std::string>& header, const std::vector<std::string>& data) : header_(header), data_(data) {}
+  mapped_row(const std::vector<std::string>& header, const std::vector<std::string>& data) : header_(header), data_(data) {}
 
   inline size_t size() const {
     return data_.size();
@@ -220,24 +252,86 @@ class dynamic_row {
   const std::vector<std::string>& data_;
 };
 
-class dynamic {
+class flat {
  public:
-  dynamic(std::istream& in, bool has_header) : header_(), data_() {
-    readStream(in, has_header);
+  flat() : data_() {}
+
+  flat(std::istream& in) : data_() {
+    detail::readStream(in, data_);
   }
 
-  dynamic(const std::string& filename, bool has_header) : header_(), data_() {
+  flat(const std::string& filename) : data_() {
     std::ifstream in(filename, std::ios::in | std::ios::binary);
-    readStream(in, has_header);
+    detail::readStream(in, data_);
   }
 
-  void write(std::ostream& out, bool with_header) const {
-    writeStream(out, with_header);
+  virtual void write(std::ostream& out) const {
+    detail::writeStream(out, data_);
   }
 
-  void write(const std::string& filename, bool with_header) const {
+  virtual void write(const std::string& filename) const {
     std::ofstream out(filename, std::ios::out | std::ios::binary);
-    writeStream(out, with_header);
+    detail::writeStream(out, data_);
+  }
+
+  inline size_t size() const {
+    return data_.size();
+  }
+
+  inline std::string& at(size_t row, size_t column) {
+    return data_.at(row).at(column);
+  }
+
+  inline const std::string& at(size_t row, size_t column) const {
+    return data_.at(row).at(column);
+  }
+
+  virtual void emplaceRow() {
+    data_.emplace_back();
+  }
+
+  virtual void emplaceColumn() {
+    for (auto& row : data_) {
+      row.emplace_back();
+    }
+  }
+
+  template <typename T = std::string>
+  inline T get(size_t row, size_t column) const {
+    return detail::convert<T>(data_.at(row).at(column));
+  }
+
+  bool operator==(const flat& other) const {
+    return data_ == other.data_;
+  }
+
+  bool operator!=(const flat& other) const {
+    return !(*this == other);
+  }
+
+  virtual ~flat() = default;
+ protected:
+  std::vector<std::vector<std::string>> data_;
+};
+
+class mapped : public flat {
+ public:
+  mapped(std::istream& in) : flat(), header_() {
+    detail::readStream(in, data_, &header_);
+  }
+
+  mapped(const std::string& filename) : flat(), header_() {
+    std::ifstream in(filename, std::ios::in | std::ios::binary);
+    detail::readStream(in, data_, &header_);
+  }
+
+  void write(std::ostream& out) const override {
+    detail::writeStream(out, data_, &header_);
+  }
+
+  void write(const std::string& filename) const override {
+    std::ofstream out(filename, std::ios::out | std::ios::binary);
+    detail::writeStream(out, data_, &header_);
   }
 
   inline size_t headerIndex(const std::string& column) const {
@@ -249,9 +343,7 @@ class dynamic {
     throw std::runtime_error("Unrecognized column " + column);
   }
 
-  inline size_t size() const {
-    return data_.size();
-  }
+  using flat::at;
 
   inline std::string& at(size_t row, const std::string& column) {
     return data_.at(row).at(headerIndex(column));
@@ -261,22 +353,15 @@ class dynamic {
     return data_.at(row).at(headerIndex(column));
   }
 
-  inline std::string& at(size_t row, size_t column) {
-    return data_.at(row).at(column);
+  virtual void emplaceRow() override {
+    data_.emplace_back(header_.size(), "");
   }
 
-  inline const std::string& at(size_t row, size_t column) const {
-    return data_.at(row).at(column);
+  virtual void emplaceColumn() override {
+    throw std::runtime_error("pHcsv::mapped does not implement emplaceColumn() with no argument");
   }
 
-  inline void emplace_back() {
-    data_.emplace_back(std::vector<std::string>(header_.size(), ""));
-  }
-
-  inline void addHeader(const std::string& column) {
-    if (header_.empty()) {
-      throw std::runtime_error("Can't add header to pHcsv::dynamic without headers");
-    }
+  inline void emplaceColumn(const std::string& column) {
     if (std::find(header_.begin(), header_.end(), column) == header_.end()) {
       header_.push_back(column);
       for (auto& row : data_) {
@@ -285,182 +370,37 @@ class dynamic {
     }
   }
 
+  using flat::get;
+
   template <typename T = std::string>
   inline T get(size_t row, const std::string& column) const {
-    return dynamic_row(header_, data_.at(row)).get<T>(column);
+    return mapped_row(header_, data_.at(row)).get<T>(column);
   }
 
-  template <typename T = std::string>
-  inline T get(size_t row, size_t column) const {
-    return dynamic_row(header_, data_.at(row)).get<T>(column);
+  bool operator==(const mapped& other) const {
+    return header_ == other.header_ && flat::operator==(other);
   }
 
-  bool operator==(const dynamic& other) const {
-    return header_ == other.header_ && data_ == other.data_;
-  }
-
-  bool operator!=(const dynamic& other) const {
+  bool operator!=(const mapped& other) const {
     return !(*this == other);
   }
 
  private:
-  void readStream(std::istream& in, bool has_header) {
-    if (in.bad() || in.fail()) {
-      throw std::runtime_error("Bad input");
-    }
-    std::istreambuf_iterator<char> it(in);
-    if (has_header && it != detail::EOCSVF) {
-      header_ = detail::readCsvRow(it);
-    }
-    while (it != detail::EOCSVF) {
-      data_.push_back(detail::readCsvRow(it, header_.size()));
-    }
-  }
-
-  void writeStream(std::ostream& out, bool with_header) const {
-    if (out.bad() || out.fail()) {
-      throw std::runtime_error("Bad output");
-    }
-    std::ostreambuf_iterator<char> it(out);
-    if (with_header) {
-      detail::writeCsvRow(it, header_);
-      it = '\n';
-    }
-    for (size_t i = 0; i < data_.size(); i++) {
-      detail::writeCsvRow(it, data_.at(i));
-      if (i != data_.size() - 1) {
-        it = '\n';
-      }
-    }
-  }
-
-  std::vector<std::string> header_;
-  std::vector<std::vector<std::string>> data_;
-};
-
-template <typename T>
-class typed : public std::vector<T> {
- public:
-  typed(const std::string& filename, std::function<T(const dynamic_row&)> parse_func) {
-    std::ifstream in(filename, std::ios::in | std::ios::binary);
-    readStreamWithHeader(in, parse_func);
-  }
-
-  typed(std::ifstream& in, std::function<T(const dynamic_row&)> parse_func) {
-    readStreamWithHeader(in, parse_func);
-  }
-
-  typed(const std::string& filename, std::function<T(const std::vector<std::string>&)> parse_func) {
-    std::ifstream in(filename, std::ios::in | std::ios::binary);
-    readStreamNoHeader(in, parse_func);
-  }
-
-  typed(std::ifstream& in, std::function<T(const std::vector<std::string>&)> parse_func) {
-    readStreamNoHeader(in, parse_func);
-  }
-
-  void write(const std::string& filename, std::function<std::map<std::string, std::string>(const T&)> map_func) const {
-    std::ofstream out(filename, std::ios::out | std::ios::binary);
-    writeStreamWithHeader(out, map_func);
-  }
-
-  void write(std::ofstream& out, std::function<std::map<std::string, std::string>(const T&)> map_func) const {
-    writeStreamWithHeader(out, map_func);
-  }
-
-  void write(const std::string& filename, std::function<std::vector<std::string>(const T&)> vector_func) const {
-    std::ofstream out(filename, std::ios::out | std::ios::binary);
-    writeStreamNoHeader(out, vector_func);
-  }
-
-  void write(std::ofstream& out, std::function<std::vector<std::string>(const T&)> vector_func) const {
-    writeStreamNoHeader(out, vector_func);
-  }
-
-  inline const std::vector<std::string>& header() const {
-    return header_;
-  }
-
-  inline std::vector<std::string>& header() {
-    return header_;
-  }
-
- private:
-  void readStreamWithHeader(std::istream& in, std::function<T(const dynamic_row&)> parse_func) {
-    if (in.bad() || in.fail()) {
-      throw std::runtime_error("Bad input");
-    }
-    std::istreambuf_iterator<char> it(in);
-    if (it == detail::EOCSVF) {
-      return;
-    }
-    header_ = detail::readCsvRow(it);
-    while (it != detail::EOCSVF) {
-      std::vector<T>::push_back(parse_func(dynamic_row(header_, detail::readCsvRow(it, header_.size()))));
-    }
-  }
-
-  void readStreamNoHeader(std::istream& in, std::function<T(const std::vector<std::string>&)> parse_func) {
-    if (in.bad() || in.fail()) {
-      throw std::runtime_error("Bad input");
-    }
-    std::istreambuf_iterator<char> it(in);
-    while (it != detail::EOCSVF) {
-      std::vector<T>::push_back(parse_func(detail::readCsvRow(it)));
-    }
-  }
-
-  void writeStreamWithHeader(std::ofstream& out, std::function<std::map<std::string, std::string>(const T&)> map_func) const {
-    if (out.bad() || out.fail()) {
-      throw std::runtime_error("Bad output");
-    }
-    std::ostreambuf_iterator<char> it(out);
-    detail::writeCsvRow(it, header_);
-    it = '\n';
-    for (size_t i = 0; i < std::vector<T>::size(); i++) {
-      std::map<std::string, std::string> data_map = map_func(std::vector<T>::at(i));
-      std::vector<std::string> row(header_.size(), "");
-      for (size_t h = 0; h < header_.size(); h++) {
-        auto it = data_map.find(header_.at(h));
-        if (it != data_map.end()) {
-          row.at(h) = it->second;
-        }
-      }
-      detail::writeCsvRow(it, row);
-      if (i != std::vector<T>::size() - 1) {
-        it = '\n';
-      }
-    }
-  }
-
-  void writeStreamNoHeader(std::ofstream& out, std::function<std::vector<std::string>(const T&)> vector_func) const {
-    if (out.bad() || out.fail()) {
-      throw std::runtime_error("Bad output");
-    }
-    std::ostreambuf_iterator<char> it(out);
-    for (size_t i = 0; i < std::vector<T>::size(); i++) {
-      detail::writeCsvRow(it, vector_func(std::vector<T>::at(i)));
-      if (i != std::vector<T>::size() - 1) {
-        it = '\n';
-      }
-    }
-  }
-
   std::vector<std::string> header_;
 };
 
-void streamRows(std::istream& in, std::function<void(const dynamic_row&)> parse_func) {
+void streamRows(std::istream& in, std::function<void(const mapped_row&)> parse_func) {
   if (in.bad() || in.fail()) {
     throw std::runtime_error("Bad input");
   }
   std::istreambuf_iterator<char> it(in);
   std::vector<std::string> header = detail::readCsvRow(it);
   while (it != detail::EOCSVF) {
-    parse_func(dynamic_row(header, detail::readCsvRow(it, header.size())));
+    parse_func(mapped_row(header, detail::readCsvRow(it, header.size())));
   }
 }
 
-inline void streamRows(const std::string& filename, std::function<void(const dynamic_row&)> parse_func) {
+inline void streamRows(const std::string& filename, std::function<void(const mapped_row&)> parse_func) {
   std::ifstream in(filename, std::ios::in | std::ios::binary);
   streamRows(in, parse_func);
 }
