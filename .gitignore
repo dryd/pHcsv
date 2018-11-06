@@ -1,0 +1,4 @@
+build/
+test_pHcsv_perf
+CMakeLists.txt.user
+SsoObservation*

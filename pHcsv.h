@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 #include <vector>
 #include <map>
@@ -6,7 +8,9 @@
 #include <algorithm>
 #include <functional>
 
-namespace pHcsv {
+namespace pH {
+
+namespace csv {
 
 namespace detail {
 
@@ -274,6 +278,11 @@ class flat {
 class mapped_row {
  public:
   mapped_row(const std::vector<std::string>& header, const std::vector<std::string>& data) : header_(header), data_(data) {}
+  mapped_row() = delete;
+  mapped_row(const mapped_row& other) = delete;
+  mapped_row(mapped_row&& other) = delete;
+  mapped_row& operator=(const mapped_row& other) = delete;
+  mapped_row& operator=(mapped_row&& other) = delete;
 
   inline size_t size() const {
     return data_.size();
@@ -438,4 +447,6 @@ inline void streamRows(const std::string& filename, std::function<void(const std
   streamRows(in, parse_func);
 }
 
-}  // namespace pHcsv
+}  // namespace csv
+
+}  // namespace pH
