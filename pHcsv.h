@@ -338,6 +338,8 @@ class mapped : public flat {
     detail::readStream(in, data_, &header_);
   }
 
+  mapped(std::vector<std::string> header, flat data = flat()) : flat(std::move(data)), header_(std::move(header)) {}
+
   void write(std::ostream& out) const override {
     detail::writeStream(out, data_, &header_);
   }
@@ -347,13 +349,13 @@ class mapped : public flat {
     detail::writeStream(out, data_, &header_);
   }
 
-  void write(std::ostream& out, bool ignore_header) const {
-    detail::writeStream(out, data_, ignore_header ? nullptr : &header_);
+  void write(std::ostream& out, bool skip_header) const {
+    detail::writeStream(out, data_, skip_header ? nullptr : &header_);
   }
 
-  void write(const std::string& filename, bool ignore_header) const {
+  void write(const std::string& filename, bool skip_header) const {
     std::ofstream out(filename, std::ios::out | std::ios::binary);
-    detail::writeStream(out, data_, ignore_header ? nullptr : &header_);
+    detail::writeStream(out, data_, skip_header ? nullptr : &header_);
   }
 
   inline size_t headerIndex(const std::string& column) const {
@@ -380,6 +382,9 @@ class mapped : public flat {
   }
 
   void resizeColumns(size_t size) override {
+    if (size > header_.size()) {
+      throw std::runtime_error("Can not increase number of headers with pH::csv::mapped::resizeColumns");
+    }
     header_.resize(size);
     flat::resizeColumns(size);
   }

@@ -154,12 +154,21 @@ int main(int argc, char** argv) {
     }
     if (mode == -1) {
         // Directly from stringstream
-        std::ifstream t("test_data/SsoObservation.csv");
         std::stringstream strStream;
-        strStream << t.rdbuf();//read the file
+        {
+          std::ifstream in("test_data/SsoObservation.csv");
+          strStream << in.rdbuf();//read the file
+        }
 
         auto start = std::chrono::high_resolution_clock::now();
         pH::csv::mapped data(strStream);
         logPerf("From stringstream", start);
+    }
+    if (mode == -2) {
+        // Directly from stringstream
+        auto start = std::chrono::high_resolution_clock::now();
+        std::ifstream in("test_data/SsoObservation.csv");
+        std::string str(std::istreambuf_iterator<char>(in), (std::istreambuf_iterator<char>()));
+        logPerf("std::istreambuf_iterator read", start);
     }
 }

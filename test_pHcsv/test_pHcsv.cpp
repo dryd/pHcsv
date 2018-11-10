@@ -1,5 +1,7 @@
 #include "../pHcsv.h"
 
+const std::string TMP_FILE = "tmp.csv";
+
 template<typename T>
 inline std::string toString(const T& val) {
   return std::to_string(val);
@@ -13,7 +15,7 @@ inline std::string toString(const std::string& val) {
 #define ASSERT_EQ(expr, expected) if ((expr) != (expected)) { printf("Assert failed at line %d:\n  %s != %s\n", __LINE__, toString(expr).c_str(), #expected); return 1; }
 
 int test_mapped_wiki() {
-  pH::csv::mapped data("../test_data/wiki.csv");
+  pH::csv::mapped data("../test_data/wiki_extended.csv");
 
   // Test get() and at()
   ASSERT_EQ(data.rows(), 4);
@@ -48,19 +50,19 @@ int test_mapped_wiki() {
   ASSERT_EQ(data.get<double>(4, "CC"), 3997.0);
 
   // Test write()
-  data.write("../test_data/wiki_written.csv");
-  pH::csv::mapped written_data("../test_data/wiki_written.csv");
+  data.write(TMP_FILE);
+  pH::csv::mapped written_data(TMP_FILE);
   if (data != written_data) {
     printf("Written data does not match data\n");
     return 1;
   }
-  std::remove("../test_data/wiki_written.csv");
+  std::remove(TMP_FILE.c_str());
 
   return 0;
 }
 
 int test_flat_wiki() {
-  pH::csv::flat data("../test_data/wiki_no_header.csv");
+  pH::csv::flat data("../test_data/wiki_extended_no_header.csv");
 
   // Test get() and at()
   ASSERT_EQ(data.rows(), 4);
@@ -85,13 +87,13 @@ int test_flat_wiki() {
   ASSERT_EQ(data.get<double>(4, 6), 3997.0);
 
   // Test write()
-  data.write("../test_data/wiki_written.csv");
-  pH::csv::flat written_data("../test_data/wiki_written.csv");
+  data.write(TMP_FILE);
+  pH::csv::flat written_data(TMP_FILE);
   if (data != written_data) {
     printf("Written data does not match data\n");
     return 1;
   }
-  std::remove("../test_data/wiki_written.csv");
+  std::remove(TMP_FILE.c_str());
 
   return 0;
 }
@@ -133,7 +135,7 @@ Car parseCarFromVec(const std::vector<std::string>& row) {
 
 int test_streaming() {
   std::map<int, std::vector<Car>> cheap_cars_by_year;
-  pH::csv::streamRows("../test_data/wiki.csv", [&cheap_cars_by_year] (const pH::csv::mapped_row& row) {
+  pH::csv::streamRows("../test_data/wiki_extended.csv", [&cheap_cars_by_year] (const pH::csv::mapped_row& row) {
     if (std::stod(row.at("Price")) < 4800.0) {
       cheap_cars_by_year[std::stoi(row.at("Year"))].push_back(parseCar(row));
     }
@@ -142,7 +144,7 @@ int test_streaming() {
   ASSERT_EQ(cheap_cars_by_year.at(1997).front().model, "E350");
 
   cheap_cars_by_year.clear();
-  pH::csv::streamRows("../test_data/wiki_no_header.csv", [&cheap_cars_by_year] (const std::vector<std::string>& row) {
+  pH::csv::streamRows("../test_data/wiki_extended_no_header.csv", [&cheap_cars_by_year] (const std::vector<std::string>& row) {
     if (std::stod(row.at(4)) < 4800.0) {
       cheap_cars_by_year[std::stoi(row.at(0))].push_back(parseCarFromVec(row));
     }
@@ -153,6 +155,38 @@ int test_streaming() {
   return 0;
 }
 
+int test_create_csv() {
+  pH::csv::flat flat_data;
+  flat_data.resizeColumns(3);
+  flat_data.emplaceRow();
+  flat_data.at(0, 0) = "2019";
+  flat_data.at(0, 1) = "Ford";
+  flat_data.at(0, 2) = "F150";
+
+  pH::csv::mapped mapped_data({"Year", "Make", "Model"}, flat_data);
+  mapped_data.write(TMP_FILE);
+
+  pH::csv::mapped written_data(TMP_FILE);
+  ASSERT_EQ(written_data.rows(), 1);
+  ASSERT_EQ(written_data.columns(), 3);
+  ASSERT_EQ(written_data.get<int>(0, "Year"), 2019);
+  ASSERT_EQ(written_data.at(0, "Make"), "Ford");
+  ASSERT_EQ(written_data.at(0, "Model"), "F150");
+
+  if (mapped_data != written_data) {
+    printf("Written data does not match mapped data\n");
+    return 1;
+  }
+
+  const pH::csv::flat& flattened_written_data = written_data;
+  if (flattened_written_data != flat_data) {
+    printf("Written data does not match mapped data\n");
+    return 1;
+  }
+
+  return 0;
+}
+
 int main() {
-  return test_mapped_wiki() + test_flat_wiki() + test_streaming();
+  return test_mapped_wiki() + test_flat_wiki() + test_streaming() + test_create_csv();
 }
