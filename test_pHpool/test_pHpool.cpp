@@ -29,11 +29,12 @@ int main() {
   pH::pool p(1);
 
   std::vector<int> numbers;
-  p.push([&numbers] () {
-    std::cout << "job running" << std::endl;
-    numbers.push_back(0);
-    std::cout << "job finished: " << print(numbers) << std::endl;
-  });
+  for (int i = 0; i < 5; i++) {
+    std::cout << print(numbers) << std::endl;
+    p.push([&numbers, i] () {
+      numbers.push_back(i);
+    });
+  }
   std::cout << print(numbers) << std::endl;
   p.wait();
   std::cout << print(numbers) << std::endl;
