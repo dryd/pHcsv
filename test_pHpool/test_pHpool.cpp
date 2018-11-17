@@ -26,7 +26,7 @@ inline std::string print(const std::vector<T>& vec) {
 #define ASSERT_EQ(expr, expected) if ((expr) != (expected)) { printf("Assert failed at line %d:\n  %s != %s\n", __LINE__, toString(expr).c_str(), #expected); return 1; }
 
 int main() {
-  pH::pool p(1);
+  pH::fpool p(1);
 
   std::vector<int> numbers;
   for (int i = 0; i < 5; i++) {

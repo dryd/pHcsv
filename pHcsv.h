@@ -280,7 +280,7 @@ class mapped_row {
   mapped_row(const std::vector<std::string>& header, const std::vector<std::string>& data) : header_(header), data_(data) {}
   mapped_row() = delete;
   mapped_row(const mapped_row& other) = delete;
-  mapped_row(mapped_row&& other) = delete;
+  mapped_row(mapped_row&& other) : header_(other.header_), data_(other.data_) {}
   mapped_row& operator=(const mapped_row& other) = delete;
   mapped_row& operator=(mapped_row&& other) = delete;
 

@@ -7,6 +7,7 @@
 
 namespace pH {
 
+template <typename Callable>
 class pool {
  public:
   pool(size_t num_workers, bool synched = false)
@@ -22,13 +23,13 @@ class pool {
     }
   }
 
-  void push(std::function<void()> job) {
+  void push(Callable job) {
     {
       std::unique_lock<std::mutex> lock(mutex_);
       if (synched_) {
         cv_.wait(lock, [this] { return work_left_ < workers_.size(); });
       }
-      jobs_.push_back(job);
+      jobs_.push_back(std::move(job));
       work_left_++;
     }
     cv_.notify_all();
@@ -60,22 +61,18 @@ class pool {
  private:
   void work() {
     while (true) {
-      std::function<void()> job;
-      {
-        std::unique_lock<std::mutex> lock(mutex_);
-        cv_.wait(lock, [this] { return !jobs_.empty() || abort_; });
-        if (abort_) return;
+      std::unique_lock<std::mutex> lock(mutex_);
+      cv_.wait(lock, [this] { return !jobs_.empty() || abort_; });
+      if (abort_) return;
 
-        job = jobs_.front();
-        jobs_.pop_front();
-      }
-      cv_.notify_all();
+      Callable job = std::move(jobs_.front());
+      jobs_.pop_front();
+      lock.unlock();
 
       job();
-      {
-        std::lock_guard<std::mutex> lock(mutex_);
-        work_left_--;
-      }
+
+      lock.lock();
+      work_left_--;
       cv_.notify_all();
     }
   }
@@ -83,7 +80,7 @@ class pool {
   bool synched_;
   std::vector<std::thread> workers_;
 
-  std::deque<std::function<void()>> jobs_;
+  std::deque<Callable> jobs_;
   size_t work_left_;
 
   std::mutex mutex_;
@@ -91,5 +88,7 @@ class pool {
 
   bool abort_;
 };
+
+using fpool = pool<std::function<void()>>;
 
 }  // namespace pH
