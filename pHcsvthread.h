@@ -12,9 +12,7 @@ namespace detail {
 class processMapped {
  public:
     processMapped(const std::vector<std::string>& header, std::vector<std::string>&& row, const std::function<void(const mapped_row&)>& parse_func)
-      : header_(header),
-        row_(std::move(row)),
-        parse_func_(parse_func) {}
+      : header_(header), row_(std::move(row)), parse_func_(parse_func) {}
 
     processMapped(processMapped&& other) noexcept : header_(other.header_), row_(std::move(other.row_)), parse_func_(other.parse_func_) {}
 
@@ -29,8 +27,7 @@ class processMapped {
 class processFlat {
  public:
     processFlat(std::vector<std::string>&& row, const std::function<void(const std::vector<std::string>&)>& parse_func)
-      : row_(std::move(row)),
-        parse_func_(parse_func) {}
+      : row_(std::move(row)), parse_func_(parse_func) {}
 
     processFlat(processFlat&& other) noexcept : row_(std::move(other.row_)), parse_func_(std::move(other.parse_func_)) {}
 

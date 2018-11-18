@@ -16,7 +16,8 @@ class pool {
       jobs_(),
       work_left_(0),
       mutex_(),
-      cv_(),
+      worker_cv_(),
+      wait_cv_(),
       abort_(false) {
     for (size_t i = 0; i < num_workers; i++) {
       workers_.emplace_back([this] { work(); });
@@ -27,12 +28,12 @@ class pool {
     {
       std::unique_lock<std::mutex> lock(mutex_);
       if (synched_) {
-        cv_.wait(lock, [this] { return work_left_ < workers_.size(); });
+        wait_cv_.wait(lock, [this] { return work_left_ < workers_.size(); });
       }
       jobs_.push_back(std::move(job));
       work_left_++;
     }
-    cv_.notify_all();
+    worker_cv_.notify_one();
   }
 
   template <typename... Args>
@@ -40,17 +41,17 @@ class pool {
     {
       std::unique_lock<std::mutex> lock(mutex_);
       if (synched_) {
-        cv_.wait(lock, [this] { return work_left_ < workers_.size(); });
+        wait_cv_.wait(lock, [this] { return work_left_ < workers_.size(); });
       }
       jobs_.emplace_back(std::forward<Args>(args)...);
       work_left_++;
     }
-    cv_.notify_all();
+    worker_cv_.notify_one();
   }
 
   void wait() {
     std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this] { return work_left_ == 0; });
+    wait_cv_.wait(lock, [this] { return work_left_ == 0; });
   }
 
   void clear() {
@@ -62,10 +63,10 @@ class pool {
   ~pool() {
     {
       std::unique_lock<std::mutex> lock(mutex_);
-      cv_.wait(lock, [this] { return work_left_ == 0; });
+      wait_cv_.wait(lock, [this] { return work_left_ == 0; });
       abort_ = true;
     }
-    cv_.notify_all();
+    worker_cv_.notify_all();
     for (auto& worker : workers_) {
       worker.join();
     }
@@ -75,7 +76,7 @@ class pool {
   void work() {
     while (true) {
       std::unique_lock<std::mutex> lock(mutex_);
-      cv_.wait(lock, [this] { return !jobs_.empty() || abort_; });
+      worker_cv_.wait(lock, [this] { return !jobs_.empty() || abort_; });
       if (abort_) return;
 
       Callable job(std::move(jobs_.front()));
@@ -86,7 +87,7 @@ class pool {
 
       lock.lock();
       work_left_--;
-      cv_.notify_all();
+      wait_cv_.notify_all();
     }
   }
 
@@ -97,7 +98,8 @@ class pool {
   size_t work_left_;
 
   std::mutex mutex_;
-  std::condition_variable cv_;
+  std::condition_variable worker_cv_;
+  std::condition_variable wait_cv_;
 
   bool abort_;
 };
