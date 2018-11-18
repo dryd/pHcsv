@@ -26,8 +26,8 @@ int main() {
   std::map<int, std::vector<Car>> luxury_cars_by_year;
   std::mutex mut;
 
-  // pH::csv::streamRowsThreaded works similarly to pH::csv::streamRows
-  // The main thread will be used for CSV parsing
+  // pH::csv::streamRowsThreaded works similarly to pH::csv::streamRows.
+  // The main thread will be used for CSV parsing.
   // The second argument is number of threads to be used in data processing.
   // If the number is higher than 1, make sure to protect your data structure from race conditions.
   pH::csv::streamRowsThreaded("test_data/wiki.csv", 3, [&luxury_cars_by_year, &mut] (const pH::csv::mapped_row& row) {

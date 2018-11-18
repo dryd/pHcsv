@@ -165,56 +165,58 @@ int main(int argc, char** argv) {
     if (argc != 2) {
         throw std::runtime_error("No mode specified");
     }
-    std::vector<SSO> ssos;
     int mode = std::stoi(argv[1]);
     if (mode == 0 || mode == -1) {
-        auto start = std::chrono::high_resolution_clock::now();
-        pH::csv::mapped data("test_data/SsoObservation.csv");
-        for (size_t row = 0; row < data.rows(); row++) {
-          ssos.push_back(convertFromMapped(data, row));
-        }
-        logPerf("pH::csv::mapped", start);
+      auto start = std::chrono::high_resolution_clock::now();
+      std::vector<SSO> ssos;
+      pH::csv::mapped data("test_data/SsoObservation.csv");
+      for (size_t row = 0; row < data.rows(); row++) {
+        ssos.push_back(convertFromMapped(data, row));
+      }
+      logPerf("pH::csv::mapped", start);
     }
     if (mode == 1 || mode == -1) {
-        auto start = std::chrono::high_resolution_clock::now();
-        pH::csv::flat data("test_data/SsoObservation_no_header.csv");
-        for (size_t row = 0; row < data.rows(); row++) {
-          ssos.push_back(convertFromFlat(data, row));
-        }
-        logPerf("pH::csv::flat", start);
+      auto start = std::chrono::high_resolution_clock::now();
+      std::vector<SSO> ssos;
+      pH::csv::flat data("test_data/SsoObservation_no_header.csv");
+      for (size_t row = 0; row < data.rows(); row++) {
+        ssos.push_back(convertFromFlat(data, row));
+      }
+      logPerf("pH::csv::flat", start);
     }
     if (mode == 2 || mode == -1) {
-        auto start = std::chrono::high_resolution_clock::now();
-        pH::csv::streamRows("test_data/SsoObservation.csv", [&ssos] (const pH::csv::mapped_row& row) {
-            ssos.push_back(convertFromDynamic(row));
-        });
-        logPerf("pH::csv::streamRows", start);
+      auto start = std::chrono::high_resolution_clock::now();
+      std::vector<SSO> ssos;
+      pH::csv::streamRows("test_data/SsoObservation.csv", [&ssos] (const pH::csv::mapped_row& row) {
+          ssos.push_back(convertFromDynamic(row));
+      });
+      logPerf("pH::csv::streamRows", start);
     }
     if (mode == 3 || mode == -1) {
-        auto start = std::chrono::high_resolution_clock::now();
-        pH::csv::streamRows("test_data/SsoObservation_no_header.csv", [&ssos] (const std::vector<std::string>& row) {
-            ssos.push_back(convertFromVec(row));
-        });
-        logPerf("pH::csv::streamRows (no_header)", start);
+      auto start = std::chrono::high_resolution_clock::now();
+      std::vector<SSO> ssos;
+      pH::csv::streamRows("test_data/SsoObservation_no_header.csv", [&ssos] (const std::vector<std::string>& row) {
+          ssos.push_back(convertFromVec(row));
+      });
+      logPerf("pH::csv::streamRows (no_header)", start);
     }
     if (mode == 4 || mode == -1) {
-        auto start = std::chrono::high_resolution_clock::now();
-        std::mutex mut;
-        pH::csv::streamRowsThreaded("test_data/SsoObservation.csv", 3, [&ssos, &mut] (const pH::csv::mapped_row& row) {
-          auto sso = convertFromDynamic(row);
-          std::lock_guard<std::mutex> lock(mut);
-          ssos.push_back(std::move(sso));
-        });
-        logPerf("pH::csv::streamRowsThreaded", start);
+      auto start = std::chrono::high_resolution_clock::now();
+      std::vector<SSO> ssos;
+      std::mutex mut;
+      pH::csv::streamRowsThreaded("test_data/SsoObservation.csv", 3, [&ssos, &mut] (const pH::csv::mapped_row& row) {
+        SSO sso = convertFromDynamic(row);
+        std::lock_guard<std::mutex> lock(mut);
+        ssos.push_back(std::move(sso));
+      });
+      logPerf("pH::csv::streamRowsThreaded", start);
     }
     if (mode == 5 || mode == -1) {
-        auto start = std::chrono::high_resolution_clock::now();
-        std::mutex mut;
-        pH::csv::streamRowsThreaded("test_data/SsoObservation_no_header.csv", 1, [&ssos, &mut] (const std::vector<std::string>& row) {
-          auto sso = convertFromVec(row);
-          std::lock_guard<std::mutex> lock(mut);
-          ssos.push_back(std::move(sso));
-        });
-        logPerf("pH::csv::streamRowsThreaded (no_header)", start);
+      auto start = std::chrono::high_resolution_clock::now();
+      std::vector<SSO> ssos;
+      pH::csv::streamRowsThreaded("test_data/SsoObservation_no_header.csv", 1, [&ssos] (const std::vector<std::string>& row) {
+        ssos.push_back(convertFromVec(row));
+      });
+      logPerf("pH::csv::streamRowsThreaded (no_header)", start);
     }
 }

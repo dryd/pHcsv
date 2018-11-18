@@ -35,6 +35,19 @@ class pool {
     cv_.notify_all();
   }
 
+  template <typename... Args>
+  void emplace(Args&&... args) {
+    {
+      std::unique_lock<std::mutex> lock(mutex_);
+      if (synched_) {
+        cv_.wait(lock, [this] { return work_left_ < workers_.size(); });
+      }
+      jobs_.emplace_back(std::forward<Args>(args)...);
+      work_left_++;
+    }
+    cv_.notify_all();
+  }
+
   void wait() {
     std::unique_lock<std::mutex> lock(mutex_);
     cv_.wait(lock, [this] { return work_left_ == 0; });
@@ -65,7 +78,7 @@ class pool {
       cv_.wait(lock, [this] { return !jobs_.empty() || abort_; });
       if (abort_) return;
 
-      Callable job = std::move(jobs_.front());
+      Callable job(std::move(jobs_.front()));
       jobs_.pop_front();
       lock.unlock();
 

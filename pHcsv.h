@@ -177,6 +177,15 @@ void writeStream(std::ostream& out, const std::vector<std::vector<std::string>>&
   }
 }
 
+inline size_t headerIndex(const std::vector<std::string>& header, const std::string& column) {
+  for (size_t i = 0; i < header.size(); i++) {
+    if (header.at(i) == column) {
+      return i;
+    }
+  }
+  throw std::runtime_error("Unrecognized column " + column);
+}
+
 template<typename T>
 inline T convert(const std::string& str) {
   return T(str);  // hope it's constructible with a string...
@@ -280,7 +289,7 @@ class mapped_row {
   mapped_row(const std::vector<std::string>& header, const std::vector<std::string>& data) : header_(header), data_(data) {}
   mapped_row() = delete;
   mapped_row(const mapped_row& other) = delete;
-  mapped_row(mapped_row&& other) : header_(other.header_), data_(other.data_) {}
+  mapped_row(mapped_row&& other) = delete;
   mapped_row& operator=(const mapped_row& other) = delete;
   mapped_row& operator=(mapped_row&& other) = delete;
 
@@ -289,7 +298,7 @@ class mapped_row {
   }
 
   inline const std::string& at(const std::string& column) const {
-    return data_[headerIndex(column)];
+    return data_[detail::headerIndex(header_, column)];
   }
 
   inline const std::string& at(size_t column) const {
@@ -309,20 +318,7 @@ class mapped_row {
     return detail::convert<T>(at(column));
   }
 
-  inline const std::vector<std::string>& data() const {
-    return data_;
-  }
-
  private:
-  inline size_t headerIndex(const std::string& column) const {
-    for (size_t i = 0; i < header_.size(); i++) {
-      if (header_.at(i) == column) {
-        return i;
-      }
-    }
-    throw std::runtime_error("Unrecognized column " + column);
-  }
-
   const std::vector<std::string>& header_;
   const std::vector<std::string>& data_;
 };
@@ -358,23 +354,14 @@ class mapped : public flat {
     detail::writeStream(out, data_, skip_header ? nullptr : &header_);
   }
 
-  inline size_t headerIndex(const std::string& column) const {
-    for (size_t i = 0; i < header_.size(); i++) {
-      if (header_.at(i) == column) {
-        return i;
-      }
-    }
-    throw std::runtime_error("Unrecognized column " + column);
-  }
-
   using flat::at;
 
   inline std::string& at(size_t row, const std::string& column) {
-    return data_.at(row).at(headerIndex(column));
+    return data_.at(row).at(detail::headerIndex(header_, column));
   }
 
   inline const std::string& at(size_t row, const std::string& column) const {
-    return data_.at(row).at(headerIndex(column));
+    return data_.at(row).at(detail::headerIndex(header_, column));
   }
 
   void emplaceRow() override {
