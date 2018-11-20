@@ -220,33 +220,15 @@ class flat {
     detail::writeStream(out, data_);
   }
 
-  inline size_t rows() const {
-    return data_.size();
-  }
+  inline size_t rows() const { return data_.size(); }
+  virtual inline size_t columns() const { return columns_; }
+  inline size_t columns(size_t row) const { return data_.at(row).size(); }
 
-  virtual inline size_t columns() const {
-    return columns_;
-  }
+  inline std::string& at(size_t row, size_t column) { return data_.at(row).at(column); }
+  inline const std::string& at(size_t row, size_t column) const { return data_.at(row).at(column); }
 
-  inline size_t columns(size_t row) const {
-    return data_.at(row).size();
-  }
-
-  inline std::string& at(size_t row, size_t column) {
-    return data_.at(row).at(column);
-  }
-
-  inline const std::string& at(size_t row, size_t column) const {
-    return data_.at(row).at(column);
-  }
-
-  void emplaceRow(size_t columns) {
-    data_.emplace_back(columns);
-  }
-
-  virtual void emplaceRow() {
-    data_.emplace_back(columns_);
-  }
+  void emplaceRow(size_t columns) { data_.emplace_back(columns); }
+  virtual void emplaceRow() { data_.emplace_back(columns_); }
 
   virtual void resizeColumns(size_t size) {
     columns_ = size;
@@ -260,13 +242,8 @@ class flat {
     return detail::convert<T>(data_.at(row).at(column));
   }
 
-  bool operator==(const flat& other) const {
-    return data_ == other.data_;
-  }
-
-  bool operator!=(const flat& other) const {
-    return !(*this == other);
-  }
+  bool operator==(const flat& other) const { return data_ == other.data_; }
+  bool operator!=(const flat& other) const { return !(*this == other); }
 
   virtual ~flat() = default;
 
@@ -293,9 +270,7 @@ class mapped_row {
   mapped_row& operator=(const mapped_row& other) = delete;
   mapped_row& operator=(mapped_row&& other) = delete;
 
-  inline size_t size() const {
-    return data_.size();
-  }
+  inline size_t size() const { return data_.size(); }
 
   inline const std::string& at(const std::string& column) const {
     return data_[detail::headerIndex(header_, column)];
@@ -309,14 +284,9 @@ class mapped_row {
   }
 
   template <typename T = std::string>
-  inline T get(const std::string& column) const {
-    return detail::convert<T>(at(column));
-  }
-
+  inline T get(const std::string& column) const { return detail::convert<T>(at(column)); }
   template <typename T = std::string>
-  inline T get(size_t column) const {
-    return detail::convert<T>(at(column));
-  }
+  inline T get(size_t column) const { return detail::convert<T>(at(column)); }
 
  private:
   const std::vector<std::string>& header_;
@@ -354,19 +324,15 @@ class mapped : public flat {
     detail::writeStream(out, data_, skip_header ? nullptr : &header_);
   }
 
+  inline size_t headerIndex(const std::string& column) const {
+      return detail::headerIndex(header_, column);
+  }
+
   using flat::at;
+  inline std::string& at(size_t row, const std::string& column) { return data_.at(row).at(headerIndex(column)); }
+  inline const std::string& at(size_t row, const std::string& column) const { return data_.at(row).at(headerIndex(column)); }
 
-  inline std::string& at(size_t row, const std::string& column) {
-    return data_.at(row).at(detail::headerIndex(header_, column));
-  }
-
-  inline const std::string& at(size_t row, const std::string& column) const {
-    return data_.at(row).at(detail::headerIndex(header_, column));
-  }
-
-  void emplaceRow() override {
-    data_.emplace_back(header_.size(), "");
-  }
+  void emplaceRow() override { data_.emplace_back(header_.size(), ""); }
 
   void resizeColumns(size_t size) override {
     if (size > header_.size()) {
@@ -376,9 +342,7 @@ class mapped : public flat {
     flat::resizeColumns(size);
   }
 
-  inline size_t columns() const override {
-    return header_.size();
-  }
+  inline size_t columns() const override { return header_.size(); }
 
   inline void emplaceColumn(const std::string& column) {
     if (std::find(header_.begin(), header_.end(), column) == header_.end()) {
@@ -390,19 +354,11 @@ class mapped : public flat {
   }
 
   using flat::get;
-
   template <typename T = std::string>
-  inline T get(size_t row, const std::string& column) const {
-    return mapped_row(header_, data_.at(row)).get<T>(column);
-  }
+  inline T get(size_t row, const std::string& column) const { return mapped_row(header_, data_.at(row)).get<T>(column); }
 
-  bool operator==(const mapped& other) const {
-    return header_ == other.header_ && flat::operator==(other);
-  }
-
-  bool operator!=(const mapped& other) const {
-    return !(*this == other);
-  }
+  bool operator==(const mapped& other) const { return header_ == other.header_ && flat::operator==(other); }
+  bool operator!=(const mapped& other) const { return !(*this == other); }
 
  private:
   std::vector<std::string> header_;
