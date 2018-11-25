@@ -36,10 +36,11 @@ void addNumbers(size_t num_threads, bool synched) {
     // Push jobs to thread pool
     pool.push([&numbers, i] () {
       // Simulate doing some actual work with sleep_for
-      std::this_thread::sleep_for(10ms);
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
       numbers.push_back(i); // possible race condition when push_back on vector from multiple threads, ignored
     });
   }
+
   // Print vector and duration immediately, without waiting
   std::cout << "Before wait: " << print(numbers) << ", " << getDuration(start) << "ms" << std::endl;
 
@@ -104,7 +105,7 @@ int main() {
   pool.push(VectorAdder(1, numbers));
 
   // Use pH::pool::emplace to construct the functor directly in the thread pool
-  // Note that if synched is true, the VectorAdder constructor will not be called before a worker is available
+  // Note that if pool is synched, the VectorAdder constructor will not be called before a worker is available
   pool.emplace(2, numbers);
 
   // Wait until the jobs have been picked up by worker threads
