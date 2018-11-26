@@ -32,7 +32,7 @@ double getDuration(std::chrono::time_point<std::chrono::high_resolution_clock> s
 
 int main() {
   pH::ad objf(2, [] (std::vector<pH::ad::var>& variables) {
-    return variables[0] * variables[1] + variables[0].sin();
+    return variables[0].pow(variables[1]);
   });
 
   std::cout << objf.eval({2.0, 3.0}) << std::endl;
