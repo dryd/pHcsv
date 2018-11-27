@@ -34,10 +34,7 @@ class ad {
           }
           return value_ + rhs.value_;
       }
-
-      var operator+(var&& rhs) {
-         return operator+(rhs);
-      }
+      var operator+(var&& rhs) { return operator+(rhs); }
 
       var operator-(var& rhs) {
           if (fillInfo(rhs)) {
@@ -45,10 +42,7 @@ class ad {
           }
           return value_ - rhs.value_;
       }
-
-      var operator-(var&& rhs) {
-          return operator-(rhs);
-      }
+      var operator-(var&& rhs) { return operator-(rhs); }
 
       var operator*(var& rhs) {
           if (fillInfo(rhs)) {
@@ -56,10 +50,7 @@ class ad {
           }
           return value_ * rhs.value_;
       }
-
-      var operator*(var&& rhs) {
-          return operator*(rhs);
-      }
+      var operator*(var&& rhs) { return operator*(rhs); }
 
       var pow(var& rhs) {
           if (fillInfo(rhs)) {
@@ -67,10 +58,7 @@ class ad {
           }
           return std::pow(value_, rhs.value_);
       }
-
-      var pow(var&& rhs) {
-          return pow(rhs);
-      }
+      var pow(var&& rhs) { return pow(rhs); }
 
       var sin() {
           if (ad_ != nullptr) {

@@ -22,9 +22,9 @@ inline std::string readCsvField(std::istreambuf_iterator<char>& it, bool& new_ro
   if (it == EOCSVF) {
     return result;
   }
+  bool quote = false;
   if (*it == '"') {
     it++;
-    bool quote = false;
     while (it != EOCSVF) {
       char c = *it;
       it++;
@@ -57,11 +57,9 @@ inline std::string readCsvField(std::istreambuf_iterator<char>& it, bool& new_ro
         }
     }
   } else {
-    bool quote = false;
     while (it != EOCSVF) {
       char c = *it;
       it++;
-      if (quote) {
         switch (c) {
           case '\n':
             new_row = true;
@@ -69,29 +67,16 @@ inline std::string readCsvField(std::istreambuf_iterator<char>& it, bool& new_ro
           case ',':
             return result;
           case '"':
-            quote = false;
+            if (!quote) {
+              result.push_back('"');
+            }
+            quote = !quote;
             break;
           default:
             result.push_back(c);
             quote = false;
             break;
         }
-      } else {
-        switch (c) {
-          case '\n':
-            new_row = true;
-            return result;
-          case ',':
-            return result;
-          case '"':
-            result.push_back('"');
-            quote = true;
-            break;
-          default:
-            result.push_back(c);
-            break;
-        }
-      }
     }
   }
   return result;
@@ -112,7 +97,7 @@ inline std::vector<std::string> readCsvRow(std::istreambuf_iterator<char>& it, s
   return result;
 }
 
-void readStream(std::istream& in, std::vector<std::vector<std::string>>& data, std::vector<std::string>* header = nullptr) {
+inline void readStream(std::istream& in, std::vector<std::vector<std::string>>& data, std::vector<std::string>* header = nullptr) {
   if (in.bad() || in.fail()) {
     throw std::runtime_error("Bad input");
   }
@@ -127,7 +112,7 @@ void readStream(std::istream& in, std::vector<std::vector<std::string>>& data, s
   }
 }
 
-void writeCsvRow(std::ostreambuf_iterator<char>& it, const std::vector<std::string>& row) {
+inline void writeCsvRow(std::ostreambuf_iterator<char>& it, const std::vector<std::string>& row) {
   for (size_t i = 0; i < row.size(); i++) {
     const auto& field = row.at(i);
     bool escape = false;
