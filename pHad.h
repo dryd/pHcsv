@@ -26,55 +26,88 @@ class ad {
      public:
       var(double value, size_t index, ad* t) : ad_(t), index_(index), value_(value) {}
 
-      var& clone(double value) const {
-        var& rhs = ad_->addNode(details::operation::NONE, {std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max()}).variable_;
-        rhs.value_ = value;
-        return rhs;
+      var(double value) : ad_(nullptr), index_(std::numeric_limits<size_t>::max()), value_(value) {}
+
+      var operator+(var& rhs) {
+          if (fillInfo(rhs)) {
+              return ad_->addNode(details::operation::ADD, {index_, rhs.index_}).variable_;
+          }
+          return value_ + rhs.value_;
       }
 
-      var& operator+(const var& rhs) const {
-          return ad_->addNode(details::operation::ADD, {index_, rhs.index_}).variable_;
+      var operator+(var&& rhs) {
+         return operator+(rhs);
       }
 
-      var& operator+(double value) const {
-          return operator+(clone(value));
+      var operator-(var& rhs) {
+          if (fillInfo(rhs)) {
+              return ad_->addNode(details::operation::SUBTRACT, {index_, rhs.index_}).variable_;
+          }
+          return value_ - rhs.value_;
       }
 
-      var& operator-(const var& rhs) const {
-          return ad_->addNode(details::operation::SUBTRACT, {index_, rhs.index_}).variable_;
+      var operator-(var&& rhs) {
+          return operator-(rhs);
       }
 
-      var& operator-(double value) const {
-          return operator-(clone(value));
+      var operator*(var& rhs) {
+          if (fillInfo(rhs)) {
+            return ad_->addNode(details::operation::MULTIPLY, {index_, rhs.index_}).variable_;
+          }
+          return value_ * rhs.value_;
       }
 
-      var& operator*(const var& rhs) const {
-          return ad_->addNode(details::operation::MULTIPLY, {index_, rhs.index_}).variable_;
+      var operator*(var&& rhs) {
+          return operator*(rhs);
       }
 
-      var& operator*(double value) const {
-          return operator*(clone(value));
+      var pow(var& rhs) {
+          if (fillInfo(rhs)) {
+              return ad_->addNode(details::operation::POW, {index_, rhs.index_}).variable_;
+          }
+          return std::pow(value_, rhs.value_);
       }
 
-      var& pow(const var& rhs) {
-          return ad_->addNode(details::operation::POW, {index_, rhs.index_}).variable_;
+      var pow(var&& rhs) {
+          return pow(rhs);
       }
 
-      var& pow(double value) {
-          return pow(clone(value));
+      var sin() {
+          if (ad_ != nullptr) {
+              return ad_->addNode(details::operation::SIN, {index_, std::numeric_limits<size_t>::max()}).variable_;
+          }
+          return std::sin(value_);
       }
 
-      var& sin() const {
-          return ad_->addNode(details::operation::SIN, {index_, std::numeric_limits<size_t>::max()}).variable_;
-      }
-
-      var& cos() const {
-          return ad_->addNode(details::operation::COS, {index_, std::numeric_limits<size_t>::max()}).variable_;
+      var cos() {
+          if (ad_ != nullptr) {
+              return ad_->addNode(details::operation::COS, {index_, std::numeric_limits<size_t>::max()}).variable_;
+          }
+          return std::cos(value_);
       }
 
       ad* ad_;
       size_t index_;
       double value_;
+
+    private:
+      bool fillInfo(var& rhs) {
+          if (ad_ == nullptr && rhs.ad_ == nullptr) {
+              return false;
+          }
+          if (rhs.ad_ == nullptr) {
+              var& var = ad_->addNode(details::operation::NONE, {std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max()}).variable_;
+              var.value_ = rhs.value_;
+              rhs.ad_ = var.ad_;
+              rhs.index_ = var.index_;
+          } else if (ad_ == nullptr) {
+              var& var = rhs.ad_->addNode(details::operation::NONE, {std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max()}).variable_;
+              var.value_ = value_;
+              ad_ = var.ad_;
+              index_ = var.index_;
+          }
+          return true;
+      }
     };
 
     class node {
@@ -196,5 +229,11 @@ protected:
   std::vector<node> tape_;
   size_t num_independent_variables_;
 };
+
+ad::var operator+(double lhs, ad::var& rhs) { return rhs + lhs; }
+ad::var operator+(double lhs, ad::var&& rhs) { return rhs + lhs; }
+
+ad::var operator*(double lhs, ad::var& rhs) { return rhs * lhs; }
+ad::var operator*(double lhs, ad::var&& rhs) { return rhs * lhs; }
 
 }  // namespace pH
