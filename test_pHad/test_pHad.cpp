@@ -48,7 +48,7 @@ int main() {
   pH::ad ad_objf(2, [] (std::vector<pH::ad::var>& vars) {
     pH::ad::var a = 2.0;
     pH::ad::var b = a + 1.0;
-    return b.pow(a) * vars.at(0).pow(vars.at(1));
+    return pow(b, a) * pow(vars.at(0), vars.at(1));
   });
 
   std::vector<double> point{ 2.0, 3.0 };
