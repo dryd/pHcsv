@@ -1,4 +1,4 @@
-#include "../pHad.h"
+#include "pHad.h"
 
 #include <iostream>
 #include <chrono>

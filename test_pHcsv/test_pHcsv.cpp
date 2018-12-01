@@ -1,4 +1,4 @@
-#include "../pHcsv.h"
+#include "pHcsv.h"
 
 const std::string TMP_FILE = "tmp.csv";
 
@@ -15,7 +15,7 @@ inline std::string toString(const std::string& val) {
 #define ASSERT_EQ(expr, expected) if ((expr) != (expected)) { printf("Assert failed at line %d:\n  %s != %s\n", __LINE__, toString(expr).c_str(), #expected); return 1; }
 
 int test_mapped_wiki() {
-  pH::csv::mapped data("../test_data/wiki_extended.csv");
+  pH::csv::mapped data(TESTDATA_DIR "/wiki_extended.csv");
 
   // Test get() and at()
   ASSERT_EQ(data.rows(), 4);
@@ -62,7 +62,7 @@ int test_mapped_wiki() {
 }
 
 int test_flat_wiki() {
-  pH::csv::flat data("../test_data/wiki_extended_no_header.csv");
+  pH::csv::flat data(TESTDATA_DIR "/wiki_extended_no_header.csv");
 
   // Test get() and at()
   ASSERT_EQ(data.rows(), 4);
@@ -135,7 +135,7 @@ Car parseCarFromVec(const std::vector<std::string>& row) {
 
 int test_streaming() {
   std::map<int, std::vector<Car>> cheap_cars_by_year;
-  pH::csv::streamRows("../test_data/wiki_extended.csv", [&cheap_cars_by_year] (const pH::csv::mapped_row& row) {
+  pH::csv::streamRows(TESTDATA_DIR "/wiki_extended.csv", [&cheap_cars_by_year] (const pH::csv::mapped_row& row) {
     if (std::stod(row.at("Price")) < 4800.0) {
       cheap_cars_by_year[std::stoi(row.at("Year"))].push_back(parseCar(row));
     }
@@ -144,7 +144,7 @@ int test_streaming() {
   ASSERT_EQ(cheap_cars_by_year.at(1997).front().model, "E350");
 
   cheap_cars_by_year.clear();
-  pH::csv::streamRows("../test_data/wiki_extended_no_header.csv", [&cheap_cars_by_year] (const std::vector<std::string>& row) {
+  pH::csv::streamRows(TESTDATA_DIR "/wiki_extended_no_header.csv", [&cheap_cars_by_year] (const std::vector<std::string>& row) {
     if (std::stod(row.at(4)) < 4800.0) {
       cheap_cars_by_year[std::stoi(row.at(0))].push_back(parseCarFromVec(row));
     }
