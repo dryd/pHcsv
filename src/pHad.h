@@ -11,6 +11,10 @@ namespace pH {
 namespace details {
 
 static thread_local void* ad_ = nullptr;
+struct ad_guard {
+  ad_guard(void* ad) { ad_ = ad; }
+  ~ad_guard() { ad_ = nullptr; }
+};
 
 static const size_t NO_INDEX = std::numeric_limits<size_t>::max();
 
@@ -49,19 +53,18 @@ class ad {
     var operator*=(var rhs) { return modifyingOperation(rhs, details::operation::MULTIPLY); }
     var operator/=(var rhs) { return modifyingOperation(rhs, details::operation::DIVIDE); }
 
-   protected:
-    friend class node;
-    friend class ad;
-    var(double value, size_t index) : index_(index), value_(value) {}
-
-    size_t index_;
-    double value_;
-
    private:
     var& modifyingOperation(const var& rhs, details::operation op) {
       index_ = getAD()->addNode(op, index_, rhs.index_).index_;
       return *this;
     }
+
+    friend class node;
+    friend class ad;
+    explicit var(size_t index) : index_(index), value_(std::numeric_limits<double>::quiet_NaN()) {}
+
+    size_t index_;
+    double value_;
   };
 
   ad(size_t num_independent_variables, std::function<var(const std::vector<var>& variables)> generator)
@@ -70,9 +73,10 @@ class ad {
     for (size_t i = 0; i < num_independent_variables_; i++) {
       variables.push_back(addNode(details::operation::ROOT));
     }
-    details::ad_ = reinterpret_cast<void*>(this);
+
+    details::ad_guard adg(reinterpret_cast<void*>(this));
     var end_variable = generator(variables);
-    details::ad_ = nullptr;
+
     long end_variable_index = static_cast<long>(end_variable.index_);
     for (auto it = tape_.cend() - 1; it != tape_.cbegin() + end_variable_index; it--) {
       tape_.erase(it);
@@ -198,7 +202,7 @@ class ad {
       : adjoint_values_({std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()}),
         parents_({parent1, parent2}),
         operation_(op),
-        variable_(std::numeric_limits<double>::quiet_NaN(), index) {}
+        variable_(index) {}
 
     std::array<double, 2> adjoint_values_;
     std::array<size_t, 2> parents_;
