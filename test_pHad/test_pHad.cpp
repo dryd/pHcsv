@@ -170,7 +170,6 @@ void example1() {
 }
 
 int main() {
-  example1();
   int r = testFunctions(std::vector<double>(100, 1.01), rosenbrock<pH::ad::var>, rosenbrock<double>);
   int ao = testFunctions(std::vector<double>(8, 8.2), testAllOperations<pH::ad::var>, testAllOperations<double>);
 

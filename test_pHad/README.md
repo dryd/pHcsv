@@ -78,7 +78,7 @@ Performance was measured with this program (with some function definitions in th
 
 ```cpp
 #include <pHad.h>
-#include <iostream>
+#include <chrono>
 
 // Help function for timing
 double getDuration(std::chrono::time_point<std::chrono::high_resolution_clock> start) {

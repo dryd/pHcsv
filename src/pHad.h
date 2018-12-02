@@ -9,21 +9,23 @@
 namespace pH {
 
 namespace details {
-  static thread_local void* ad_ = nullptr;
 
-  static size_t NO_INDEX = std::numeric_limits<size_t>::max();
+static thread_local void* ad_ = nullptr;
 
-  enum class operation {
-    ADD,
-    SUBTRACT,
-    MULTIPLY,
-    POW,
-    EXP,
-    LOG,
-    SIN,
-    COS,
-    ROOT
-  };
+static const size_t NO_INDEX = std::numeric_limits<size_t>::max();
+
+enum class operation {
+  ADD,
+  SUBTRACT,
+  MULTIPLY,
+  POW,
+  EXP,
+  LOG,
+  SIN,
+  COS,
+  ROOT
+};
+
 }
 
 class ad {
@@ -35,7 +37,7 @@ class ad {
       if (getAD() == nullptr) {
         throw std::runtime_error("Initializing pH::ad::var outside of generator scope");
       }
-      var& added = getAD()->addNode(details::operation::ROOT, details::NO_INDEX, details::NO_INDEX).variable_;
+      var& added = getAD()->addNode(details::operation::ROOT);
       added.value_ = value_;
       index_ = added.index_;
     }
@@ -54,7 +56,7 @@ class ad {
 
    private:
     var& modifyingOperation(const var& rhs, details::operation op) {
-      index_ = getAD()->addNode(op, index_, rhs.index_).variable_.index_;
+      index_ = getAD()->addNode(op, index_, rhs.index_).index_;
       return *this;
     }
   };
@@ -63,7 +65,7 @@ class ad {
     : num_independent_variables_(num_independent_variables), has_been_evaluated_(false) {
     std::vector<var> variables;
     for (size_t i = 0; i < num_independent_variables_; i++) {
-      variables.push_back(addNode(details::operation::ROOT, details::NO_INDEX, details::NO_INDEX).variable_);
+      variables.push_back(addNode(details::operation::ROOT));
     }
     details::ad_ = reinterpret_cast<void*>(this);
     var end_variable = generator(variables);
@@ -167,6 +169,10 @@ class ad {
   }
 
  private:
+  std::vector<node> tape_;
+  size_t num_independent_variables_;
+  bool has_been_evaluated_;
+
   static ad* getAD() { return reinterpret_cast<ad*>(details::ad_); }
 
   class node {
@@ -182,19 +188,12 @@ class ad {
     details::operation operation_;
 
     var variable_;
-
-   private:
   };
 
-  node& addNode(details::operation op, size_t parent1, size_t parent2) {
+  var& addNode(details::operation op, size_t parent1 = details::NO_INDEX, size_t parent2 = details::NO_INDEX) {
     tape_.emplace_back(tape_.size(), op, parent1, parent2);
-    return tape_.back();
+    return tape_.back().variable_;
   }
-
-
-  std::vector<node> tape_;
-  size_t num_independent_variables_;
-  bool has_been_evaluated_;
 
   static size_t idx(const var& v) { return v.index_; }
 
@@ -208,23 +207,23 @@ class ad {
   friend ad::var cos(ad::var lhs);
 };
 
-inline ad::var operator+(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::ADD, ad::idx(lhs), ad::idx(rhs)).variable_; }
-inline ad::var operator-(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::SUBTRACT, ad::idx(lhs), ad::idx(rhs)).variable_; }
-inline ad::var operator*(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::MULTIPLY, ad::idx(lhs), ad::idx(rhs)).variable_; }
+inline ad::var operator+(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::ADD, ad::idx(lhs), ad::idx(rhs)); }
+inline ad::var operator-(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::SUBTRACT, ad::idx(lhs), ad::idx(rhs)); }
+inline ad::var operator*(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::MULTIPLY, ad::idx(lhs), ad::idx(rhs)); }
 
-inline ad::var pow(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::POW, ad::idx(lhs), ad::idx(rhs)).variable_; }
+inline ad::var pow(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::POW, ad::idx(lhs), ad::idx(rhs)); }
 inline double pow(double lhs, double rhs) { return std::pow(lhs, rhs); }
 
-inline ad::var exp(ad::var lhs) { return ad::getAD()->addNode(details::operation::EXP, ad::idx(lhs), details::NO_INDEX).variable_; }
+inline ad::var exp(ad::var lhs) { return ad::getAD()->addNode(details::operation::EXP, ad::idx(lhs)); }
 inline double exp(double lhs) { return std::exp(lhs); }
 
-inline ad::var log(ad::var lhs) { return ad::getAD()->addNode(details::operation::LOG, ad::idx(lhs), details::NO_INDEX).variable_; }
+inline ad::var log(ad::var lhs) { return ad::getAD()->addNode(details::operation::LOG, ad::idx(lhs)); }
 inline double log(double lhs) { return std::log(lhs); }
 
-inline ad::var sin(ad::var lhs) { return ad::getAD()->addNode(details::operation::SIN, ad::idx(lhs), details::NO_INDEX).variable_; }
+inline ad::var sin(ad::var lhs) { return ad::getAD()->addNode(details::operation::SIN, ad::idx(lhs)); }
 inline double sin(double lhs) { return std::sin(lhs); }
 
-inline ad::var cos(ad::var lhs) { return ad::getAD()->addNode(details::operation::COS, ad::idx(lhs), details::NO_INDEX).variable_; }
+inline ad::var cos(ad::var lhs) { return ad::getAD()->addNode(details::operation::COS, ad::idx(lhs)); }
 inline double cos(double lhs) { return std::cos(lhs); }
 
 }  // namespace pH
