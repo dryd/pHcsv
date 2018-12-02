@@ -18,11 +18,13 @@ enum class operation {
   ADD,
   SUBTRACT,
   MULTIPLY,
+  DIVIDE,
   POW,
   EXP,
   LOG,
   SIN,
   COS,
+  TAN,
   ROOT
 };
 
@@ -42,9 +44,10 @@ class ad {
       index_ = added.index_;
     }
 
-    var operator*=(var rhs) { return modifyingOperation(rhs, details::operation::MULTIPLY); }
     var operator+=(var rhs) { return modifyingOperation(rhs, details::operation::ADD); }
     var operator-=(var rhs) { return modifyingOperation(rhs, details::operation::SUBTRACT); }
+    var operator*=(var rhs) { return modifyingOperation(rhs, details::operation::MULTIPLY); }
+    var operator/=(var rhs) { return modifyingOperation(rhs, details::operation::DIVIDE); }
 
    protected:
     friend class node;
@@ -108,6 +111,14 @@ class ad {
           node.adjoint_values_[1] = parent0.variable_.value_;
           break;
         }
+        case details::operation::DIVIDE: {
+          const auto& parent0 = tape_[node.parents_[0]];
+          const auto& parent1 = tape_[node.parents_[1]];
+          node.variable_.value_ = parent0.variable_.value_ / parent1.variable_.value_;
+          node.adjoint_values_[0] = 1.0 / parent1.variable_.value_;
+          node.adjoint_values_[1] = -1.0 / pow(parent0.variable_.value_, 2.0);
+          break;
+        }
         case details::operation::POW: {
           const auto& parent0 = tape_[node.parents_[0]];
           const auto& parent1 = tape_[node.parents_[1]];
@@ -137,7 +148,13 @@ class ad {
         case details::operation::COS: {
           const auto& parent0 = tape_[node.parents_[0]];
           node.variable_.value_ = cos(parent0.variable_.value_);
-          node.adjoint_values_[0] = sin(parent0.variable_.value_);
+          node.adjoint_values_[0] = -sin(parent0.variable_.value_);
+          break;
+        }
+        case details::operation::TAN: {
+          const auto& parent0 = tape_[node.parents_[0]];
+          node.variable_.value_ = tan(parent0.variable_.value_);
+          node.adjoint_values_[0] = 1.0 + pow(tan(parent0.variable_.value_), 2.0);
           break;
         }
         case details::operation::ROOT:
@@ -197,33 +214,34 @@ class ad {
 
   static size_t idx(const var& v) { return v.index_; }
 
-  friend ad::var operator+(ad::var lhs, ad::var rhs);
-  friend ad::var operator-(ad::var lhs, ad::var rhs);
-  friend ad::var operator*(ad::var lhs, ad::var rhs);
-  friend ad::var pow(ad::var lhs, ad::var rhs);
-  friend ad::var exp(ad::var lhs);
-  friend ad::var log(ad::var lhs);
-  friend ad::var sin(ad::var lhs);
-  friend ad::var cos(ad::var lhs);
+  friend var unary(details::operation, const var);
+  friend var binary(details::operation, const var, const var);
 };
 
-inline ad::var operator+(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::ADD, ad::idx(lhs), ad::idx(rhs)); }
-inline ad::var operator-(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::SUBTRACT, ad::idx(lhs), ad::idx(rhs)); }
-inline ad::var operator*(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::MULTIPLY, ad::idx(lhs), ad::idx(rhs)); }
+inline ad::var unary(details::operation op, ad::var lhs) { return ad::getAD()->addNode(op, ad::idx(lhs)); }
+inline ad::var binary(details::operation op, ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(op, ad::idx(lhs), ad::idx(rhs)); }
 
-inline ad::var pow(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::POW, ad::idx(lhs), ad::idx(rhs)); }
+inline ad::var operator+(ad::var lhs, ad::var rhs) { return binary(details::operation::ADD, lhs, rhs); }
+inline ad::var operator-(ad::var lhs, ad::var rhs) { return binary(details::operation::SUBTRACT, lhs, rhs); }
+inline ad::var operator*(ad::var lhs, ad::var rhs) { return binary(details::operation::MULTIPLY, lhs, rhs); }
+inline ad::var operator/(ad::var lhs, ad::var rhs) { return binary(details::operation::DIVIDE, lhs, rhs); }
+
+inline ad::var pow(ad::var lhs, ad::var rhs) { return binary(details::operation::POW, lhs, rhs); }
 inline double pow(double lhs, double rhs) { return std::pow(lhs, rhs); }
 
-inline ad::var exp(ad::var lhs) { return ad::getAD()->addNode(details::operation::EXP, ad::idx(lhs)); }
+inline ad::var exp(ad::var lhs) { return unary(details::operation::EXP, lhs); }
 inline double exp(double lhs) { return std::exp(lhs); }
 
-inline ad::var log(ad::var lhs) { return ad::getAD()->addNode(details::operation::LOG, ad::idx(lhs)); }
+inline ad::var log(ad::var lhs) { return unary(details::operation::LOG, lhs); }
 inline double log(double lhs) { return std::log(lhs); }
 
-inline ad::var sin(ad::var lhs) { return ad::getAD()->addNode(details::operation::SIN, ad::idx(lhs)); }
+inline ad::var sin(ad::var lhs) { return unary(details::operation::SIN, lhs); }
 inline double sin(double lhs) { return std::sin(lhs); }
 
-inline ad::var cos(ad::var lhs) { return ad::getAD()->addNode(details::operation::COS, ad::idx(lhs)); }
+inline ad::var cos(ad::var lhs) { return unary(details::operation::COS, lhs); }
 inline double cos(double lhs) { return std::cos(lhs); }
+
+inline ad::var tan(ad::var lhs) { return unary(details::operation::TAN, lhs); }
+inline double tan(double lhs) { return std::tan(lhs); }
 
 }  // namespace pH

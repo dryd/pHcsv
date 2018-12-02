@@ -97,19 +97,27 @@ T rosenbrock(const std::vector<T>& vars) {
 }
 
 template <typename T>
-T testAllOperations(const std::vector<T>& vars) {
+T testAddSubtract(const std::vector<T>& vars) {
   T f = 0.0;
-  f += vars.at(0) * vars.at(1);
-  f += vars.at(1) - vars.at(2);
-  f += vars.at(2) + vars.at(3);
-  f += pow(vars.at(3), vars.at(4));
-  f += pow(vars.at(4), 1.0);
-  f += exp(vars.at(5));
-  f += sin(vars.at(6));
-  f += cos(vars.at(7));
-  f *= 1.5;
-  T g = log(f);
-  return g * f;
+  f += vars.at(0) + vars.at(1) - 11.0;
+  return f + 2.0;
+}
+
+template <typename T>
+T testMultiplyDivide(const std::vector<T>& vars) {
+  T f = 1.0;
+  f *= vars.at(0) * vars.at(1) / 5.0;
+  return f * 2.0;
+}
+
+template <typename T>
+T testPowers(const std::vector<T>& vars) {
+  return pow(exp(vars.at(0)), vars.at(1)) + log(vars.at(1));
+}
+
+template <typename T>
+T testTrigs(const std::vector<T>& vars) {
+  return sin(vars.at(0)) + cos(vars.at(0)) + tan(vars.at(1) * vars.at(0));
 }
 
 void testPerformance(std::vector<size_t>&& num_vars) {
@@ -171,9 +179,12 @@ void example1() {
 
 int main() {
   int r = testFunctions(std::vector<double>(100, 1.01), rosenbrock<pH::ad::var>, rosenbrock<double>);
-  int ao = testFunctions(std::vector<double>(8, 8.2), testAllOperations<pH::ad::var>, testAllOperations<double>);
+  int as = testFunctions(std::vector<double>(2, 1.1), testAddSubtract<pH::ad::var>, testAddSubtract<double>);
+  int md = testFunctions(std::vector<double>(2, 1.1), testMultiplyDivide<pH::ad::var>, testMultiplyDivide<double>);
+  int po = testFunctions(std::vector<double>(2, 1.1), testPowers<pH::ad::var>, testPowers<double>);
+  int tr = testFunctions(std::vector<double>(2, 1.1), testTrigs<pH::ad::var>, testTrigs<double>);
 
-  if (r + ao) return r + ao;
+  if (r + as + md + po + tr) return 1;
 
   testPerformance({2, 10, 20, 50, 100, 200, 500, 1000, 2000});
 
