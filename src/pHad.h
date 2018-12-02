@@ -11,15 +11,18 @@ namespace pH {
 namespace details {
   static thread_local void* ad_ = nullptr;
 
+  static size_t NO_INDEX = std::numeric_limits<size_t>::max();
+
   enum class operation {
     ADD,
     SUBTRACT,
     MULTIPLY,
     POW,
     EXP,
+    LOG,
     SIN,
     COS,
-    NONE
+    ROOT
   };
 }
 
@@ -32,10 +35,14 @@ class ad {
       if (getAD() == nullptr) {
         throw std::runtime_error("Initializing pH::ad::var outside of generator scope");
       }
-      var& added = getAD()->addNode(details::operation::NONE, nullptr, nullptr).variable_;
+      var& added = getAD()->addNode(details::operation::ROOT, details::NO_INDEX, details::NO_INDEX).variable_;
       added.value_ = value_;
       index_ = added.index_;
     }
+
+    var operator*=(var rhs) { return modifyingOperation(rhs, details::operation::MULTIPLY); }
+    var operator+=(var rhs) { return modifyingOperation(rhs, details::operation::ADD); }
+    var operator-=(var rhs) { return modifyingOperation(rhs, details::operation::SUBTRACT); }
 
    protected:
     friend class node;
@@ -44,12 +51,19 @@ class ad {
 
     size_t index_;
     double value_;
+
+   private:
+    var& modifyingOperation(const var& rhs, details::operation op) {
+      index_ = getAD()->addNode(op, index_, rhs.index_).variable_.index_;
+      return *this;
+    }
   };
 
-  ad(size_t num_independent_variables, std::function<var(std::vector<var>& variables)> generator) : num_independent_variables_(num_independent_variables) {
+  ad(size_t num_independent_variables, std::function<var(const std::vector<var>& variables)> generator)
+    : num_independent_variables_(num_independent_variables), has_been_evaluated_(false) {
     std::vector<var> variables;
     for (size_t i = 0; i < num_independent_variables_; i++) {
-      variables.push_back(addNode(details::operation::NONE, nullptr, nullptr).variable_);
+      variables.push_back(addNode(details::operation::ROOT, details::NO_INDEX, details::NO_INDEX).variable_);
     }
     details::ad_ = reinterpret_cast<void*>(this);
     var end_variable = generator(variables);
@@ -95,45 +109,55 @@ class ad {
         case details::operation::POW: {
           const auto& parent0 = tape_[node.parents_[0]];
           const auto& parent1 = tape_[node.parents_[1]];
-          node.variable_.value_ = std::pow(parent0.variable_.value_, parent1.variable_.value_);
-          node.adjoint_values_[0] = parent1.variable_.value_ * std::pow(parent0.variable_.value_, parent1.variable_.value_ - 1.0);
-          node.adjoint_values_[1] = std::pow(parent0.variable_.value_, parent1.variable_.value_) * std::log(parent0.variable_.value_);
+          node.variable_.value_ = pow(parent0.variable_.value_, parent1.variable_.value_);
+          node.adjoint_values_[0] = parent1.variable_.value_ * pow(parent0.variable_.value_, parent1.variable_.value_ - 1.0);
+          node.adjoint_values_[1] = pow(parent0.variable_.value_, parent1.variable_.value_) * log(parent0.variable_.value_);
           break;
         }
         case details::operation::EXP: {
           const auto& parent0 = tape_[node.parents_[0]];
-          node.variable_.value_ = std::exp(parent0.variable_.value_);
-          node.adjoint_values_[0] = std::exp(parent0.variable_.value_);
+          node.variable_.value_ = exp(parent0.variable_.value_);
+          node.adjoint_values_[0] = exp(parent0.variable_.value_);
+          break;
+        }
+        case details::operation::LOG: {
+          const auto& parent0 = tape_[node.parents_[0]];
+          node.variable_.value_ = log(parent0.variable_.value_);
+          node.adjoint_values_[0] = 1.0 / parent0.variable_.value_;
           break;
         }
         case details::operation::SIN: {
           const auto& parent0 = tape_[node.parents_[0]];
-          node.variable_.value_ = std::sin(parent0.variable_.value_);
-          node.adjoint_values_[0] = std::cos(parent0.variable_.value_);
+          node.variable_.value_ = sin(parent0.variable_.value_);
+          node.adjoint_values_[0] = cos(parent0.variable_.value_);
           break;
         }
         case details::operation::COS: {
           const auto& parent0 = tape_[node.parents_[0]];
-          node.variable_.value_ = std::cos(parent0.variable_.value_);
-          node.adjoint_values_[0] = std::sin(parent0.variable_.value_);
+          node.variable_.value_ = cos(parent0.variable_.value_);
+          node.adjoint_values_[0] = sin(parent0.variable_.value_);
           break;
         }
-        case details::operation::NONE:
+        case details::operation::ROOT:
           break;
       }
     }
+    has_been_evaluated_ = true;
     return tape_.back().variable_.value_;
   }
 
   std::vector<double> gradient() const {
+    if (!has_been_evaluated_) {
+      throw std::runtime_error("Unable to calculate gradient before eval");
+    }
     std::vector<double> grad(tape_.size(), 0.0);
     grad.back() = 1.0;
     for (size_t n = grad.size() - 1; n >= num_independent_variables_; n--) {
       const auto& node = tape_[n];
-      if (node.parents_[0] != std::numeric_limits<size_t>::max()) {
+      if (node.parents_[0] != details::NO_INDEX) {
         grad[tape_[node.parents_[0]].variable_.index_] += grad[node.variable_.index_] * node.adjoint_values_[0];
       }
-      if (node.parents_[1] != std::numeric_limits<size_t>::max()) {
+      if (node.parents_[1] != details::NO_INDEX) {
         grad[tape_[node.parents_[1]].variable_.index_] += grad[node.variable_.index_] * node.adjoint_values_[1];
       }
     }
@@ -147,9 +171,9 @@ class ad {
 
   class node {
    public:
-    node(size_t index, details::operation op, const var* parent1, const var* parent2)
+    node(size_t index, details::operation op, size_t parent1, size_t parent2)
       : adjoint_values_({std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()}),
-        parents_({getIndex(parent1), getIndex(parent2)}),
+        parents_({parent1, parent2}),
         operation_(op),
         variable_(std::numeric_limits<double>::quiet_NaN(), index) {}
 
@@ -160,12 +184,9 @@ class ad {
     var variable_;
 
    private:
-    size_t getIndex(const var* parent) const {
-      return parent == nullptr ? std::numeric_limits<size_t>::max() : parent->index_;
-    }
   };
 
-  node& addNode(details::operation op, const var* parent1, const var* parent2) {
+  node& addNode(details::operation op, size_t parent1, size_t parent2) {
     tape_.emplace_back(tape_.size(), op, parent1, parent2);
     return tape_.back();
   }
@@ -173,22 +194,37 @@ class ad {
 
   std::vector<node> tape_;
   size_t num_independent_variables_;
+  bool has_been_evaluated_;
 
-  friend ad::var& operator+(const ad::var& lhs, const ad::var& rhs);
-  friend ad::var& operator-(const ad::var& lhs, const ad::var& rhs);
-  friend ad::var& operator*(const ad::var& lhs, const ad::var& rhs);
-  friend ad::var& pow(const ad::var& lhs, const ad::var& rhs);
-  friend ad::var& exp(const ad::var& lhs);
-  friend ad::var& sin(const ad::var& lhs);
-  friend ad::var& cos(const ad::var& lhs);
+  static size_t idx(const var& v) { return v.index_; }
+
+  friend ad::var operator+(ad::var lhs, ad::var rhs);
+  friend ad::var operator-(ad::var lhs, ad::var rhs);
+  friend ad::var operator*(ad::var lhs, ad::var rhs);
+  friend ad::var pow(ad::var lhs, ad::var rhs);
+  friend ad::var exp(ad::var lhs);
+  friend ad::var log(ad::var lhs);
+  friend ad::var sin(ad::var lhs);
+  friend ad::var cos(ad::var lhs);
 };
 
-ad::var& operator+(const ad::var& lhs, const ad::var& rhs) { return ad::getAD()->addNode(details::operation::ADD, &lhs, &rhs).variable_; }
-ad::var& operator-(const ad::var& lhs, const ad::var& rhs) { return ad::getAD()->addNode(details::operation::SUBTRACT, &lhs, &rhs).variable_; }
-ad::var& operator*(const ad::var& lhs, const ad::var& rhs) { return ad::getAD()->addNode(details::operation::MULTIPLY, &lhs, &rhs).variable_; }
-ad::var& pow(const ad::var& lhs, const ad::var& rhs) { return ad::getAD()->addNode(details::operation::POW, &lhs, &rhs).variable_; }
-ad::var& exp(const ad::var& lhs) { return ad::getAD()->addNode(details::operation::EXP, &lhs, nullptr).variable_; }
-ad::var& sin(const ad::var& lhs) { return ad::getAD()->addNode(details::operation::SIN, &lhs, nullptr).variable_; }
-ad::var& cos(const ad::var& lhs) { return ad::getAD()->addNode(details::operation::COS, &lhs, nullptr).variable_; }
+inline ad::var operator+(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::ADD, ad::idx(lhs), ad::idx(rhs)).variable_; }
+inline ad::var operator-(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::SUBTRACT, ad::idx(lhs), ad::idx(rhs)).variable_; }
+inline ad::var operator*(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::MULTIPLY, ad::idx(lhs), ad::idx(rhs)).variable_; }
+
+inline ad::var pow(ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(details::operation::POW, ad::idx(lhs), ad::idx(rhs)).variable_; }
+inline double pow(double lhs, double rhs) { return std::pow(lhs, rhs); }
+
+inline ad::var exp(ad::var lhs) { return ad::getAD()->addNode(details::operation::EXP, ad::idx(lhs), details::NO_INDEX).variable_; }
+inline double exp(double lhs) { return std::exp(lhs); }
+
+inline ad::var log(ad::var lhs) { return ad::getAD()->addNode(details::operation::LOG, ad::idx(lhs), details::NO_INDEX).variable_; }
+inline double log(double lhs) { return std::log(lhs); }
+
+inline ad::var sin(ad::var lhs) { return ad::getAD()->addNode(details::operation::SIN, ad::idx(lhs), details::NO_INDEX).variable_; }
+inline double sin(double lhs) { return std::sin(lhs); }
+
+inline ad::var cos(ad::var lhs) { return ad::getAD()->addNode(details::operation::COS, ad::idx(lhs), details::NO_INDEX).variable_; }
+inline double cos(double lhs) { return std::cos(lhs); }
 
 }  // namespace pH
