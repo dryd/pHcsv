@@ -113,7 +113,7 @@ T testAllOperations(const std::vector<T>& vars) {
 }
 
 void testPerformance(std::vector<size_t>&& num_vars) {
-  std::cout << "vars,finite_diff,auto_diff,speedup" << std::endl;
+  std::cout << "vars,finite_diff(ms),auto_diff(ms),speedup" << std::endl;
   for (size_t vars : num_vars) {
     pH::ad ad_objf(vars, rosenbrock<pH::ad::var>);
 

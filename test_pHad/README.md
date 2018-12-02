@@ -77,7 +77,7 @@ Performance
 Performance was measured with this program (with some function definitions in the example above):
 
 ```cpp
-#include <pHpool.h>
+#include <pHad.h>
 #include <iostream>
 
 // Help function for timing
@@ -104,7 +104,7 @@ std::pair<double, std::vector<double>> auto_diff(const std::vector<double>& vari
 }
 
 int main() {
-  std::cout << "vars,finite_diff,auto_diff,speedup" << std::endl;
+  std::cout << "vars,finite_diff(ms),auto_diff(ms),speedup" << std::endl;
   for (size_t num_vars : {2, 10, 20, 50, 100, 200, 500, 1000, 2000}) {
     // Set up a tape with num_vars variables
     pH::ad ad_objf(num_vars, rosenbrock<pH::ad::var>);
@@ -121,30 +121,31 @@ int main() {
 }
 ```
 
-Results (in milliseconds) for running g++ with no compiler optimizations:
+Results for running g++ with no compiler optimizations:
 
-| vars | finite_diff | auto_diff | speedup  |
-|------|-------------|-----------|----------|
-| 2    | 0.001218    | 0.002681  | 0.454308 |
-| 10   | 0.006       | 0.008967  | 0.66912  |
-| 20   | 0.019004    | 0.016662  | 1.14056  |
-| 50   | 0.102878    | 0.039704  | 2.59112  |
-| 100  | 0.390583    | 0.079626  | 4.90522  |
-| 200  | 1.55352     | 0.159179  | 9.75959  |
-| 500  | 9.50909     | 0.397793  | 23.9046  |
-| 1000 | 37.6632     | 0.791858  | 47.5631  |
-| 2000 | 150.672     | 1.58659   | 94.9656  |
+| vars | finite_diff(ms) | auto_diff(ms) | speedup  |
+|------|-----------------|---------------|----------|
+| 2    | 0.001248        | 0.002733      | 0.456641 |
+| 10   | 0.005924        | 0.008974      | 0.660129 |
+| 20   | 0.018628        | 0.016838      | 1.10631  |
+| 50   | 0.102095        | 0.03997       | 2.55429  |
+| 100  | 0.389054        | 0.079257      | 4.90877  |
+| 200  | 1.53315         | 0.158145      | 9.6946   |
+| 500  | 9.49938         | 0.393757      | 24.125   |
+| 1000 | 37.6865         | 0.786789      | 47.8991  |
+| 2000 | 150.426         | 1.57296       | 95.6326  |
 
-Results (in milliseconds) for running g++ with -O3:
 
-| vars | finite_diff | auto_diff | speedup  |
-|------|-------------|-----------|----------|
-| 2    | 0.000173    | 0.000515  | 0.335922 |
-| 10   | 0.000485    | 0.001838  | 0.263874 |
-| 20   | 0.001237    | 0.00344   | 0.359593 |
-| 50   | 0.005564    | 0.008429  | 0.660102 |
-| 100  | 0.019699    | 0.017662  | 1.11533  |
-| 200  | 0.075937    | 0.036268  | 2.09377  |
-| 500  | 0.458065    | 0.091137  | 5.02611  |
-| 1000 | 1.79494     | 0.182071  | 9.85845  |
-| 2000 | 7.14498     | 0.36571   | 19.5373  |
+Results for running g++ with -O3:
+
+| vars | finite_diff(ms) | auto_diff(ms) | speedup  |
+|------|-----------------|---------------|----------|
+| 2    | 0.000172        | 0.000507      | 0.33925  |
+| 10   | 0.000481        | 0.001801      | 0.267074 |
+| 20   | 0.001225        | 0.0035        | 0.35     |
+| 50   | 0.005455        | 0.008519      | 0.640333 |
+| 100  | 0.019605        | 0.017556      | 1.11671  |
+| 200  | 0.07532         | 0.036184      | 2.08158  |
+| 500  | 0.45745         | 0.091701      | 4.9885   |
+| 1000 | 1.79527         | 0.187119      | 9.59428  |
+| 2000 | 7.14493         | 0.366249      | 19.5084  |
