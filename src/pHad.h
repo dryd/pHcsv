@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <map>
 #include <array>
 #include <functional>
 #include <limits>
@@ -11,9 +12,9 @@ namespace pH {
 namespace details {
 
 static thread_local void* ad_ = nullptr;
-struct ad_guard {
-  ad_guard(void* ad) { ad_ = ad; }
-  ~ad_guard() { ad_ = nullptr; }
+struct adGuard {
+  template <typename T> adGuard(T* ad) { ad_ = ad; }
+  ~adGuard() { ad_ = nullptr; }
 };
 
 static const size_t NO_INDEX = std::numeric_limits<size_t>::max();
@@ -43,9 +44,7 @@ class ad {
       if (getAD() == nullptr) {
         throw std::runtime_error("Initializing pH::ad::var outside of generator scope");
       }
-      var& added = getAD()->addNode(details::operation::ROOT);
-      added.value_ = value_;
-      index_ = added.index_;
+      index_ = getAD()->addRoot(value_).index_;
     }
 
     var operator+=(var rhs) { return modifyingOperation(rhs, details::operation::ADD); }
@@ -55,7 +54,7 @@ class ad {
 
    private:
     var& modifyingOperation(const var& rhs, details::operation op) {
-      index_ = getAD()->addNode(op, index_, rhs.index_).index_;
+      index_ = getAD()->addBinary(op, *this, rhs).index_;
       return *this;
     }
 
@@ -68,20 +67,52 @@ class ad {
   };
 
   ad(size_t num_independent_variables, std::function<var(const std::vector<var>& variables)> generator)
-    : num_independent_variables_(num_independent_variables), has_been_evaluated_(false) {
+    : num_independent_variables_(num_independent_variables), num_roots_(num_independent_variables), has_been_evaluated_(false) {
     std::vector<var> variables;
     for (size_t i = 0; i < num_independent_variables_; i++) {
-      variables.push_back(addNode(details::operation::ROOT));
+      variables.push_back(addRoot());
     }
 
-    details::ad_guard adg(reinterpret_cast<void*>(this));
+    details::adGuard adg(this);
     var end_variable = generator(variables);
+    root_cache_.clear();
 
     long end_variable_index = static_cast<long>(end_variable.index_);
     for (auto it = tape_.cend() - 1; it != tape_.cbegin() + end_variable_index; it--) {
       tape_.erase(it);
     }
+
+    optimizeRoots();
     tape_.shrink_to_fit();
+  }
+
+  void move(size_t to, size_t from) {
+    node tmp = tape_.at(from);
+    tape_.erase(tape_.begin() + from);
+    tape_.insert(tape_.begin() + (from > to ? to : to - 1), tmp);
+
+    auto move_idx = [from, to] (size_t& idx) {
+      if (idx == from) idx = to;
+      else if (from < idx && idx <= to) idx--;
+      else if (to <= idx && idx < from) idx++;
+    };
+    for (size_t i = 0; i < tape_.size(); i++) {
+      move_idx(tape_[i].variable_.index_);
+      move_idx(tape_[i].parents_[0]);
+      move_idx(tape_[i].parents_[1]);
+    }
+  }
+
+  void optimizeRoots() {
+    if (tape_.size() == num_roots_) return;
+    while (tape_.at(num_roots_).operation_ == details::operation::ROOT) num_roots_++;
+
+    for (size_t i = num_roots_ + 1; i < tape_.size(); i++) {
+      if (tape_[i].operation_ == details::operation::ROOT) {
+        move(num_roots_, i);
+        num_roots_++;
+      }
+    }
   }
 
   double eval(const std::vector<double>& variables) {
@@ -92,7 +123,7 @@ class ad {
     for (; n < num_independent_variables_; n++) {
       tape_[n].variable_.value_ = variables[n];
     }
-    for (; n < tape_.size(); n++) {
+    for (n = num_roots_; n < tape_.size(); n++) {
       auto& node = tape_[n];
       switch (node.operation_) {
         case details::operation::ADD: {
@@ -175,7 +206,7 @@ class ad {
     }
     std::vector<double> grad(tape_.size(), 0.0);
     grad.back() = 1.0;
-    for (size_t n = grad.size() - 1; n >= num_independent_variables_; n--) {
+    for (size_t n = grad.size() - 1; n >= num_roots_; n--) {
       const auto& node = tape_[n];
       if (node.parents_[0] != details::NO_INDEX) {
         grad[tape_[node.parents_[0]].variable_.index_] += grad[node.variable_.index_] * node.adjoint_values_[0];
@@ -192,7 +223,10 @@ class ad {
  private:
   std::vector<node> tape_;
   size_t num_independent_variables_;
+  size_t num_roots_;
   bool has_been_evaluated_;
+
+  std::map<double, size_t> root_cache_;
 
   static ad* getAD() { return reinterpret_cast<ad*>(details::ad_); }
 
@@ -204,6 +238,8 @@ class ad {
         operation_(op),
         variable_(index) {}
 
+    node(const node& other) : adjoint_values_(other.adjoint_values_), parents_(other.parents_), operation_(other.operation_), variable_(other.variable_) {}
+
     std::array<double, 2> adjoint_values_;
     std::array<size_t, 2> parents_;
     details::operation operation_;
@@ -211,19 +247,37 @@ class ad {
     var variable_;
   };
 
-  var& addNode(details::operation op, size_t parent1 = details::NO_INDEX, size_t parent2 = details::NO_INDEX) {
-    tape_.emplace_back(tape_.size(), op, parent1, parent2);
+
+  var& addRoot(double value = std::numeric_limits<double>::quiet_NaN()) {
+    auto it = root_cache_.find(value);
+    if (it != root_cache_.end()) {
+      return tape_.at(it->second).variable_;
+    }
+
+    tape_.emplace_back(tape_.size(), details::operation::ROOT, details::NO_INDEX, details::NO_INDEX);
+    var& v = tape_.back().variable_;
+    v.value_ = value;
+
+    if (!(value != value)) root_cache_[value] = v.index_; // is not NaN
+    return v;
+  }
+
+  var& addUnary(details::operation op, var parent1) {
+    tape_.emplace_back(tape_.size(), op, parent1.index_, details::NO_INDEX);
     return tape_.back().variable_;
   }
 
-  static size_t idx(const var& v) { return v.index_; }
+  var& addBinary(details::operation op, var parent1, var parent2) {
+    tape_.emplace_back(tape_.size(), op, parent1.index_, parent2.index_);
+    return tape_.back().variable_;
+  }
 
   friend var unary(details::operation, const var);
   friend var binary(details::operation, const var, const var);
 };
 
-inline ad::var unary(details::operation op, ad::var lhs) { return ad::getAD()->addNode(op, ad::idx(lhs)); }
-inline ad::var binary(details::operation op, ad::var lhs, ad::var rhs) { return ad::getAD()->addNode(op, ad::idx(lhs), ad::idx(rhs)); }
+inline ad::var unary(details::operation op, ad::var lhs) { return ad::getAD()->addUnary(op, lhs); }
+inline ad::var binary(details::operation op, ad::var lhs, ad::var rhs) { return ad::getAD()->addBinary(op, lhs, rhs); }
 
 inline ad::var operator+(ad::var lhs, ad::var rhs) { return binary(details::operation::ADD, lhs, rhs); }
 inline ad::var operator-(ad::var lhs, ad::var rhs) { return binary(details::operation::SUBTRACT, lhs, rhs); }
