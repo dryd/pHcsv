@@ -86,35 +86,6 @@ class ad {
     tape_.shrink_to_fit();
   }
 
-  void move(size_t to, size_t from) {
-    node tmp = tape_.at(from);
-    tape_.erase(tape_.begin() + from);
-    tape_.insert(tape_.begin() + (from > to ? to : to - 1), tmp);
-
-    auto move_idx = [from, to] (size_t& idx) {
-      if (idx == from) idx = to;
-      else if (from < idx && idx <= to) idx--;
-      else if (to <= idx && idx < from) idx++;
-    };
-    for (size_t i = 0; i < tape_.size(); i++) {
-      move_idx(tape_[i].variable_.index_);
-      move_idx(tape_[i].parents_[0]);
-      move_idx(tape_[i].parents_[1]);
-    }
-  }
-
-  void optimizeRoots() {
-    if (tape_.size() == num_roots_) return;
-    while (tape_.at(num_roots_).operation_ == details::operation::ROOT) num_roots_++;
-
-    for (size_t i = num_roots_ + 1; i < tape_.size(); i++) {
-      if (tape_[i].operation_ == details::operation::ROOT) {
-        move(num_roots_, i);
-        num_roots_++;
-      }
-    }
-  }
-
   double eval(const std::vector<double>& variables) {
     if (variables.size() != num_independent_variables_) {
       throw std::runtime_error("Invalid number of variables in pH::ad::eval, should be " + std::to_string(num_independent_variables_) + ", was " + std::to_string(variables.size()));
@@ -227,6 +198,35 @@ class ad {
   bool has_been_evaluated_;
 
   std::map<double, size_t> root_cache_;
+
+  void move(size_t to, size_t from) {
+    node tmp = tape_.at(from);
+    tape_.erase(tape_.begin() + from);
+    tape_.insert(tape_.begin() + (from > to ? to : to - 1), tmp);
+
+    auto move_idx = [from, to] (size_t& idx) {
+      if (idx == from) idx = to;
+      else if (from < idx && idx <= to) idx--;
+      else if (to <= idx && idx < from) idx++;
+    };
+    for (size_t i = 0; i < tape_.size(); i++) {
+      move_idx(tape_[i].variable_.index_);
+      move_idx(tape_[i].parents_[0]);
+      move_idx(tape_[i].parents_[1]);
+    }
+  }
+
+  void optimizeRoots() {
+    if (tape_.size() == num_roots_) return;
+    while (tape_.at(num_roots_).operation_ == details::operation::ROOT) num_roots_++;
+
+    for (size_t i = num_roots_ + 1; i < tape_.size(); i++) {
+      if (tape_[i].operation_ == details::operation::ROOT) {
+        move(num_roots_, i);
+        num_roots_++;
+      }
+    }
+  }
 
   static ad* getAD() { return reinterpret_cast<ad*>(details::ad_); }
 
