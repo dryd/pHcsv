@@ -100,7 +100,7 @@ template <typename T>
 T testAddSubtract(const std::vector<T>& vars) {
   T f = 0.0;
   f += vars.at(0) + vars.at(1) - 11.0;
-  return f + 2.0;
+  return -f + 2.0;
 }
 
 template <typename T>
@@ -118,6 +118,14 @@ T testPowers(const std::vector<T>& vars) {
 template <typename T>
 T testTrigs(const std::vector<T>& vars) {
   return sin(vars.at(0)) + cos(vars.at(0)) + tan(vars.at(1) * vars.at(0));
+}
+
+template <typename T>
+T testMinMaxAbs(const std::vector<T>& vars) {
+  T f = 2.0 * pH::min(vars.at(0), vars.at(1) + 1.0);
+  f += 3.0 * pH::max(vars.at(0) - 1.0, vars.at(1));
+  f += 4.0 * pH::max(pH::abs(vars.at(0) - 10.0), vars.at(1));
+  return f;
 }
 
 void testPerformance(std::vector<size_t>&& num_vars) {
@@ -183,8 +191,9 @@ int main() {
   int md = testFunctions(std::vector<double>(2, 1.1), testMultiplyDivide<pH::ad::var>, testMultiplyDivide<double>);
   int po = testFunctions(std::vector<double>(2, 1.1), testPowers<pH::ad::var>, testPowers<double>);
   int tr = testFunctions(std::vector<double>(2, 1.1), testTrigs<pH::ad::var>, testTrigs<double>);
+  int mma = testFunctions(std::vector<double>(2, 1.1), testMinMaxAbs<pH::ad::var>, testMinMaxAbs<double>);
 
-  if (r + as + md + po + tr) return 1;
+  if (r + as + md + po + tr + mma) return 1;
 
   testPerformance({2, 10, 20, 50, 100, 200, 500, 1000, 2000});
 

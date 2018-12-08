@@ -13,7 +13,7 @@ namespace details {
 
 static thread_local void* ad_ = nullptr;
 struct adGuard {
-  template <typename T> adGuard(T* ad) { ad_ = ad; }
+  adGuard(void* ad) { ad_ = ad; }
   ~adGuard() { ad_ = nullptr; }
 };
 
@@ -25,11 +25,14 @@ enum class operation {
   MULTIPLY,
   DIVIDE,
   POW,
+  MAX,
+  MIN,
   EXP,
   LOG,
   SIN,
   COS,
   TAN,
+  ABS,
   ROOT
 };
 
@@ -81,9 +84,9 @@ class ad {
     for (auto it = tape_.cend() - 1; it != tape_.cbegin() + end_variable_index; it--) {
       tape_.erase(it);
     }
+    tape_.shrink_to_fit();
 
     optimizeRoots();
-    tape_.shrink_to_fit();
   }
 
   double eval(const std::vector<double>& variables) {
@@ -122,45 +125,77 @@ class ad {
           const auto& parent1 = tape_[node.parents_[1]];
           node.variable_.value_ = parent0.variable_.value_ / parent1.variable_.value_;
           node.adjoint_values_[0] = 1.0 / parent1.variable_.value_;
-          node.adjoint_values_[1] = -1.0 / pow(parent0.variable_.value_, 2.0);
+          node.adjoint_values_[1] = -1.0 / std::pow(parent0.variable_.value_, 2.0);
           break;
         }
         case details::operation::POW: {
           const auto& parent0 = tape_[node.parents_[0]];
           const auto& parent1 = tape_[node.parents_[1]];
-          node.variable_.value_ = pow(parent0.variable_.value_, parent1.variable_.value_);
-          node.adjoint_values_[0] = parent1.variable_.value_ * pow(parent0.variable_.value_, parent1.variable_.value_ - 1.0);
-          node.adjoint_values_[1] = pow(parent0.variable_.value_, parent1.variable_.value_) * log(parent0.variable_.value_);
+          node.variable_.value_ = std::pow(parent0.variable_.value_, parent1.variable_.value_);
+          node.adjoint_values_[0] = parent1.variable_.value_ * std::pow(parent0.variable_.value_, parent1.variable_.value_ - 1.0);
+          node.adjoint_values_[1] = std::pow(parent0.variable_.value_, parent1.variable_.value_) * std::log(parent0.variable_.value_);
+          break;
+        }
+        case details::operation::MAX: {
+          const auto& parent0 = tape_[node.parents_[0]];
+          const auto& parent1 = tape_[node.parents_[1]];
+          node.variable_.value_ = std::max(parent0.variable_.value_, parent1.variable_.value_);
+          if (parent0.variable_.value_ > parent1.variable_.value_) {
+            node.adjoint_values_[0] = 1.0;
+            node.adjoint_values_[1] = 0.0;
+          } else {
+            node.adjoint_values_[0] = 0.0;
+            node.adjoint_values_[1] = 1.0;
+          }
+          break;
+        }
+        case details::operation::MIN: {
+          const auto& parent0 = tape_[node.parents_[0]];
+          const auto& parent1 = tape_[node.parents_[1]];
+          node.variable_.value_ = std::min(parent0.variable_.value_, parent1.variable_.value_);
+          if (parent0.variable_.value_ < parent1.variable_.value_) {
+            node.adjoint_values_[0] = 1.0;
+            node.adjoint_values_[1] = 0.0;
+          } else {
+            node.adjoint_values_[0] = 0.0;
+            node.adjoint_values_[1] = 1.0;
+          }
           break;
         }
         case details::operation::EXP: {
           const auto& parent0 = tape_[node.parents_[0]];
-          node.variable_.value_ = exp(parent0.variable_.value_);
-          node.adjoint_values_[0] = exp(parent0.variable_.value_);
+          node.variable_.value_ = std::exp(parent0.variable_.value_);
+          node.adjoint_values_[0] = std::exp(parent0.variable_.value_);
           break;
         }
         case details::operation::LOG: {
           const auto& parent0 = tape_[node.parents_[0]];
-          node.variable_.value_ = log(parent0.variable_.value_);
+          node.variable_.value_ = std::log(parent0.variable_.value_);
           node.adjoint_values_[0] = 1.0 / parent0.variable_.value_;
           break;
         }
         case details::operation::SIN: {
           const auto& parent0 = tape_[node.parents_[0]];
-          node.variable_.value_ = sin(parent0.variable_.value_);
-          node.adjoint_values_[0] = cos(parent0.variable_.value_);
+          node.variable_.value_ = std::sin(parent0.variable_.value_);
+          node.adjoint_values_[0] = std::cos(parent0.variable_.value_);
           break;
         }
         case details::operation::COS: {
           const auto& parent0 = tape_[node.parents_[0]];
-          node.variable_.value_ = cos(parent0.variable_.value_);
-          node.adjoint_values_[0] = -sin(parent0.variable_.value_);
+          node.variable_.value_ = std::cos(parent0.variable_.value_);
+          node.adjoint_values_[0] = -std::sin(parent0.variable_.value_);
           break;
         }
         case details::operation::TAN: {
           const auto& parent0 = tape_[node.parents_[0]];
-          node.variable_.value_ = tan(parent0.variable_.value_);
-          node.adjoint_values_[0] = 1.0 + pow(tan(parent0.variable_.value_), 2.0);
+          node.variable_.value_ = std::tan(parent0.variable_.value_);
+          node.adjoint_values_[0] = 1.0 + std::pow(std::tan(parent0.variable_.value_), 2.0);
+          break;
+        }
+        case details::operation::ABS: {
+          const auto& parent0 = tape_[node.parents_[0]];
+          node.variable_.value_ = std::abs(parent0.variable_.value_);
+          node.adjoint_values_[0] = parent0.variable_.value_ < 0.0 ? -1.0 : 1.0;
           break;
         }
         case details::operation::ROOT:
@@ -217,13 +252,14 @@ class ad {
   }
 
   void optimizeRoots() {
-    if (tape_.size() == num_roots_) return;
-    while (tape_.at(num_roots_).operation_ == details::operation::ROOT) num_roots_++;
-
-    for (size_t i = num_roots_ + 1; i < tape_.size(); i++) {
+    for (size_t i = num_roots_; i < tape_.size(); i++) {
       if (tape_[i].operation_ == details::operation::ROOT) {
-        move(num_roots_, i);
-        num_roots_++;
+        if (i == num_roots_) {
+          num_roots_++;
+        } else {
+          move(num_roots_, i);
+          num_roots_++;
+        }
       }
     }
   }
@@ -287,6 +323,14 @@ inline ad::var operator/(ad::var lhs, ad::var rhs) { return binary(details::oper
 inline ad::var pow(ad::var lhs, ad::var rhs) { return binary(details::operation::POW, lhs, rhs); }
 inline double pow(double lhs, double rhs) { return std::pow(lhs, rhs); }
 
+inline ad::var max(ad::var lhs, ad::var rhs) { return binary(details::operation::MAX, lhs, rhs); }
+inline double max(double lhs, double rhs) { return std::max(lhs, rhs); }
+
+inline ad::var min(ad::var lhs, ad::var rhs) { return binary(details::operation::MIN, lhs, rhs); }
+inline double min(double lhs, double rhs) { return std::min(lhs, rhs); }
+
+inline ad::var operator-(ad::var lhs) { return binary(details::operation::MULTIPLY, -1.0, lhs); }
+
 inline ad::var exp(ad::var lhs) { return unary(details::operation::EXP, lhs); }
 inline double exp(double lhs) { return std::exp(lhs); }
 
@@ -301,5 +345,8 @@ inline double cos(double lhs) { return std::cos(lhs); }
 
 inline ad::var tan(ad::var lhs) { return unary(details::operation::TAN, lhs); }
 inline double tan(double lhs) { return std::tan(lhs); }
+
+inline ad::var abs(ad::var lhs) { return unary(details::operation::ABS, lhs); }
+inline double abs(double lhs) { return std::abs(lhs); }
 
 }  // namespace pH
