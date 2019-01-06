@@ -18,3 +18,5 @@ add_executable("test_pHpool" "test_pHpool/test_pHpool.cpp")
 target_link_libraries("test_pHpool" pthread)
 
 add_executable("test_pHad" "test_pHad/test_pHad.cpp")
+
+add_executable("test_pHlp" "test_pHlp/test_pHlp.cpp")
