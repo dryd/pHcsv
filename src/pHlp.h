@@ -19,7 +19,7 @@ namespace details {
 
 struct constraint {
   constraint(std::map<size_t, double> a, constraint_type t, double rhs) : a(std::move(a)), t(t), rhs(rhs) {
-    if (t == constraint_type::GEQ || t == constraint_type::EQ) {
+    if (t == constraint_type::EQ) {
       throw std::runtime_error("Unsupported constraint type");
     }
   }
@@ -35,24 +35,37 @@ class tableau {
       : num_rows_(constraints.size() + 1), num_slacks_(constraints.size()), num_cols_(c.size() + num_slacks_ + 1),
         tableau_(num_rows_ * num_cols_, 0.0), basic_variables_(constraints.size()) {
     for (size_t i = 0; i < c.size(); i++) {
-      obj(i) = -c.at(i);
+      at(num_rows_ - 1, i) = -c.at(i);
     }
     for (size_t i = 0; i < constraints.size(); i++) {
+      double multiplier = (constraints.at(i).t == constraint_type::LEQ ? 1.0 : -1.0);
       for (const auto& el : constraints.at(i).a) {
-        at(i, el.first) = el.second;
+        at(i, el.first) = multiplier * el.second;
       }
       at(i, i + (numVars() - num_slacks_)) = 1.0;
-      rhs(i) = constraints.at(i).rhs;
-      basic_variables_.at(i) = i + (c.size() - constraints.size());
+      rhs(i) = multiplier * constraints.at(i).rhs;
+      basic_variables_.at(i) = i + c.size();
     }
   }
 
-  size_t pivotColumn() const {
-    std::pair<size_t, double> pivot(0, obj(0));
+  size_t objRow() const {
+    size_t obj_row = num_rows_ - 1;
+    double inf_row_value = std::numeric_limits<double>::max();
+    for (size_t row = 0; row < num_rows_ - 1; row++) {
+      if (rhs(row) < 0.0 && rhs(row) < inf_row_value) {
+        obj_row = row;
+        inf_row_value = rhs(row);
+      }
+    }
+    return obj_row;
+  }
+
+  size_t pivotColumn(size_t obj_row) const {
+    std::pair<size_t, double> pivot(0, at(obj_row, 0));
     for (size_t col = 1; col < numVars(); col++) {
-      if (obj(col) < pivot.second) {
+      if (at(obj_row, col) < pivot.second) {
         pivot.first = col;
-        pivot.second = obj(col);
+        pivot.second = at(obj_row, col);
       }
     }
     if (pivot.second >= 0.0) {
@@ -64,8 +77,8 @@ class tableau {
   size_t pivotRow(size_t pivot_column) const {
     std::pair<size_t, double> pivot_row(std::numeric_limits<size_t>::max(), std::numeric_limits<double>::max());
     for (size_t row = 0; row < num_rows_ - 1; row++) {
-      if (at(row, pivot_column) > 0.0 && rhs(row) > 0.0) {
-        double pivot = rhs(row) / at(row, pivot_column);
+      if (at(row, pivot_column) > 0.0) {
+        double pivot = std::max(0.0, rhs(row) / at(row, pivot_column));
         if (pivot < pivot_row.second) {
           pivot_row.first = row;
           pivot_row.second = pivot;
@@ -110,6 +123,11 @@ class tableau {
   std::string toString() const {
     std::stringstream ss;
     for (size_t r = 0; r < num_rows_; r++) {
+      if (r < basic_variables_.size()) {
+        ss << "x" << basic_variables_.at(r) << ": ";
+      } else {
+        ss << "ob: ";
+      }
       for (size_t c = 0; c < num_cols_; c++) {
         ss << at(r, c) << ", ";
       }
@@ -121,9 +139,6 @@ class tableau {
  private:
   double& at(size_t row, size_t col) { return tableau_.at(col * num_rows_ + row); }
   double at(size_t row, size_t col) const { return tableau_.at(col * num_rows_ + row); }
-
-  double& obj(size_t var) { return at(num_rows_ - 1, var); }
-  double obj(size_t var) const { return at(num_rows_ - 1, var); }
 
   double& rhs(size_t row) { return at(row, num_cols_ - 1); }
   double rhs(size_t row) const { return at(row, num_cols_ - 1); }
@@ -156,17 +171,20 @@ class lp {
     details::tableau t(c_, constraints_);
     std::cout << t.toString() << std::endl;
 
-    size_t entering_pivot = t.pivotColumn();
+    size_t obj_row = t.objRow();
+    size_t entering_pivot = t.pivotColumn(obj_row);
     while (entering_pivot != std::numeric_limits<size_t>::max()) {
-      std::cout << entering_pivot << std::endl;
+      std::cout << "objr: " << obj_row << std::endl;
+      std::cout << "col: " << entering_pivot << std::endl;
       size_t leaving_pivot = t.pivotRow(entering_pivot);
-      std::cout << leaving_pivot << std::endl;
+      std::cout << "row: " << leaving_pivot << std::endl;
       if (leaving_pivot == std::numeric_limits<size_t>::max()) {
         throw std::runtime_error("Unbounded model");
       }
       t.pivot(entering_pivot, leaving_pivot);
       std::cout << t.toString() << std::endl;
-      entering_pivot = t.pivotColumn();
+      obj_row = t.objRow();
+      entering_pivot = t.pivotColumn(obj_row);
     }
 
     return t.solution();

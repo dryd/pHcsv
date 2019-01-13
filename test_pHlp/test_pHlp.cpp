@@ -53,9 +53,9 @@ double getDuration(std::chrono::time_point<std::chrono::high_resolution_clock> s
 
 int test1() {
   pH::lp lp({3, 2});
-  lp.addConstraint({{0, 2}, {1, 1}}, pH::constraint_type::LEQ, 18);
-  lp.addConstraint({{0, 2}, {1, 3}}, pH::constraint_type::LEQ, 42);
-  lp.addConstraint({{0, 3}, {1, 1}}, pH::constraint_type::LEQ, 24);
+  lp.addConstraint({{0, 2.0}, {1, 1.0}}, pH::constraint_type::LEQ, 18.0);
+  lp.addConstraint({{0, 2.0}, {1, 3.0}}, pH::constraint_type::LEQ, 42.0);
+  lp.addConstraint({{0, 3.0}, {1, 1.0}}, pH::constraint_type::LEQ, 24.0);
   auto solution = lp.optimize();
   std::vector<double> expected{3.0, 12.0};
   ASSERT_REL_EQ(solution.first, expected, 1e-10);
@@ -65,18 +65,36 @@ int test1() {
 
 int test2() {
   pH::lp lp({4, 3});
-  lp.addConstraint({{0, 2}, {1, 3}}, pH::constraint_type::LEQ, 6);
-  lp.addConstraint({{0, -3}, {1, 2}}, pH::constraint_type::LEQ, 3);
-  lp.addConstraint({{1, 2}}, pH::constraint_type::LEQ, 5);
-  lp.addConstraint({{0, 2}, {1, 1}}, pH::constraint_type::LEQ, 4);
+  lp.addConstraint({{0, 2.0}, {1, 3.0}}, pH::constraint_type::LEQ, 6.0);
+  lp.addConstraint({{0, -3.0}, {1, 2.0}}, pH::constraint_type::LEQ, 3.0);
+  lp.addConstraint({{1, 1.0}}, pH::constraint_type::GEQ, 1.5);
+  lp.addConstraint({{0, 2.0}, {1, 1}}, pH::constraint_type::LEQ, 4.0);
   auto solution = lp.optimize();
-  std::vector<double> expected{1.5, 1.0};
+  std::vector<double> expected{0.75, 1.5};
   ASSERT_REL_EQ(solution.first, expected, 1e-10);
-  ASSERT_REL_EQ(solution.second, 9.0, 1e-10);
+  ASSERT_REL_EQ(solution.second, 7.5, 1e-10);
+  std::cout << toString(solution.first) << std::endl;
+  std::cout << toString(solution.second) << std::endl;
+  return 0;
+}
+
+int test3() {
+  pH::lp lp({15.0, 10.0});
+  lp.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 2.0);
+  lp.addConstraint({{1, 1.0}}, pH::constraint_type::LEQ, 3.0);
+  lp.addConstraint({{0, 2.0}, {1, 2.0}}, pH::constraint_type::GEQ, 8.0);
+  auto solution = lp.optimize();
+  std::cout << toString(solution.first) << std::endl;
+  std::cout << toString(solution.second) << std::endl;
+  std::vector<double> expected{2.0, 3.0};
+  ASSERT_REL_EQ(solution.first, expected, 1e-10);
+  ASSERT_REL_EQ(solution.second, 60.0, 1e-10);
   return 0;
 }
 
 int main() {
-  return test1() +
-         test2();
+  return //test1()
+         + test2()
+         //+ test3()
+         ;
 }
