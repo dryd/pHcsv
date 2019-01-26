@@ -52,49 +52,132 @@ double getDuration(std::chrono::time_point<std::chrono::high_resolution_clock> s
 }
 
 int test1() {
-  pH::lp lp({3, 2});
+  pH::lp lp;
+  lp.addVariable(3.0);
+  lp.addVariable(2.0);
   lp.addConstraint({{0, 2.0}, {1, 1.0}}, pH::constraint_type::LEQ, 18.0);
   lp.addConstraint({{0, 2.0}, {1, 3.0}}, pH::constraint_type::LEQ, 42.0);
   lp.addConstraint({{0, 3.0}, {1, 1.0}}, pH::constraint_type::LEQ, 24.0);
   auto solution = lp.optimize();
+  std::cout << solution.toString() << std::endl;
   std::vector<double> expected{3.0, 12.0};
-  ASSERT_REL_EQ(solution.first, expected, 1e-10);
-  ASSERT_REL_EQ(solution.second, 33.0, 1e-10);
+  ASSERT_REL_EQ(solution.x, expected, 1e-10);
+  ASSERT_REL_EQ(solution.obj, 33.0, 1e-10);
   return 0;
 }
 
 int test2() {
-  pH::lp lp({4, 3});
+  pH::lp lp;
+  lp.addVariable(4.0);
+  lp.addVariable(3.0);
   lp.addConstraint({{0, 2.0}, {1, 3.0}}, pH::constraint_type::LEQ, 6.0);
   lp.addConstraint({{0, -3.0}, {1, 2.0}}, pH::constraint_type::LEQ, 3.0);
   lp.addConstraint({{1, 1.0}}, pH::constraint_type::GEQ, 1.5);
+  lp.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::GEQ, 2.25);
   lp.addConstraint({{0, 2.0}, {1, 1}}, pH::constraint_type::LEQ, 4.0);
   auto solution = lp.optimize();
+  std::cout << solution.toString() << std::endl;
   std::vector<double> expected{0.75, 1.5};
-  ASSERT_REL_EQ(solution.first, expected, 1e-10);
-  ASSERT_REL_EQ(solution.second, 7.5, 1e-10);
-  std::cout << toString(solution.first) << std::endl;
-  std::cout << toString(solution.second) << std::endl;
+  ASSERT_REL_EQ(solution.x, expected, 1e-10);
+  ASSERT_REL_EQ(solution.obj, 7.5, 1e-10);
   return 0;
 }
 
 int test3() {
-  pH::lp lp({15.0, 10.0});
+  pH::lp lp;
+  lp.addVariable(15.0);
+  lp.addVariable(10.0, 1.0, 3.0);
   lp.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 2.0);
-  lp.addConstraint({{1, 1.0}}, pH::constraint_type::LEQ, 3.0);
   lp.addConstraint({{0, 2.0}, {1, 2.0}}, pH::constraint_type::GEQ, 8.0);
   auto solution = lp.optimize();
-  std::cout << toString(solution.first) << std::endl;
-  std::cout << toString(solution.second) << std::endl;
+  std::cout << solution.toString() << std::endl;
   std::vector<double> expected{2.0, 3.0};
-  ASSERT_REL_EQ(solution.first, expected, 1e-10);
-  ASSERT_REL_EQ(solution.second, 60.0, 1e-10);
+  ASSERT_REL_EQ(solution.x, expected, 1e-10);
+  ASSERT_REL_EQ(solution.obj, 60.0, 1e-10);
   return 0;
 }
 
+int testNoLowerBound() {
+  pH::lp lp;
+  lp.addVariable(10.0);
+  lp.addVariable(15.0, -std::numeric_limits<double>::infinity(), 2);
+  lp.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::LEQ, 5.0);
+  auto solution = lp.optimize();
+  std::cout << solution.toString() << std::endl;
+  std::vector<double> expected{3.0, 2.0};
+  ASSERT_REL_EQ(solution.x, expected, 1e-10);
+  ASSERT_REL_EQ(solution.obj, 60.0, 1e-10);
+  return 0;
+}
+
+int testUnlimitedVariable() {
+  pH::lp lp;
+  lp.addVariable(15.0);
+  lp.addVariable(-10.0, -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+  lp.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 2.0);
+  lp.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::GEQ, 6.0);
+  auto solution = lp.optimize();
+  std::cout << solution.toString() << std::endl;
+  std::vector<double> expected{2.0, 4.0};
+  ASSERT_REL_EQ(solution.x, expected, 1e-10);
+  ASSERT_REL_EQ(solution.obj, -10.0, 1e-10);
+
+  pH::lp lp2;
+  lp2.addVariable(15.0);
+  lp2.addVariable(-10.0, -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+  lp2.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 2.0);
+  lp2.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::GEQ, 1.0);
+  lp2.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::LEQ, 6.0);
+  auto solution2 = lp2.optimize();
+  std::cout << solution.toString() << std::endl;
+  std::vector<double> expected2{2.0, -1.0};
+  ASSERT_REL_EQ(solution2.x, expected2, 1e-10);
+  ASSERT_REL_EQ(solution2.obj, 40.0, 1e-10);
+  return 0;
+}
+
+int testLockedVariable() {
+  pH::lp lp;
+  lp.addVariable(15.0);
+  lp.addVariable(10.0);
+  lp.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 0.0);
+  lp.addConstraint({{1, 1.0}}, pH::constraint_type::LEQ, 3.0);
+  auto solution = lp.optimize();
+  std::cout << solution.toString() << std::endl;
+  std::vector<double> expected{0.0, 3.0};
+  ASSERT_REL_EQ(solution.x, expected, 1e-10);
+  ASSERT_REL_EQ(solution.obj, 30.0, 1e-10);
+  return 0;
+}
+
+int testInfeasible() {
+  pH::lp lp;
+  lp.addVariable(15.0);
+  lp.addVariable(10.0);
+  lp.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::LEQ, 4.0);
+  lp.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::GEQ, 8.0);
+  try {
+    auto solution = lp.optimize();
+  } catch (...) {
+    return 0;
+  }
+  return 1;
+}
+
+int testUnbounded() {
+  pH::lp lp;
+  lp.addVariable(15.0);
+  lp.addVariable(10.0, -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+  lp.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 2.0);
+  lp.addConstraint({{0, 2.0}, {1, 2.0}}, pH::constraint_type::GEQ, 8.0);
+  try {
+    auto solution = lp.optimize();
+  } catch (...) {
+    return 0;
+  }
+  return 1;
+}
+
 int main() {
-  return //test1()
-         + test2()
-         //+ test3()
-         ;
+  return test1() + test2() + test3() + testLockedVariable() + testInfeasible() + testUnbounded() + testUnlimitedVariable() + testNoLowerBound();
 }
