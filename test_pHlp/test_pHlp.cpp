@@ -113,7 +113,7 @@ int testNoLowerBound() {
 int testUnlimitedVariable() {
   pH::lp lp;
   lp.addVariable(15.0);
-  lp.addVariable(-10.0, -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+  lp.addVariable(-10.0, -std::numeric_limits<double>::infinity());
   lp.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 2.0);
   lp.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::GEQ, 6.0);
   auto solution = lp.optimize();
@@ -124,7 +124,7 @@ int testUnlimitedVariable() {
 
   pH::lp lp2;
   lp2.addVariable(15.0);
-  lp2.addVariable(-10.0, -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+  lp2.addVariable(-10.0, -std::numeric_limits<double>::infinity());
   lp2.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 2.0);
   lp2.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::GEQ, 1.0);
   lp2.addConstraint({{0, 1.0}, {1, 1.0}}, pH::constraint_type::LEQ, 6.0);
@@ -167,7 +167,7 @@ int testInfeasible() {
 int testUnbounded() {
   pH::lp lp;
   lp.addVariable(15.0);
-  lp.addVariable(10.0, -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+  lp.addVariable(10.0, -std::numeric_limits<double>::infinity());
   lp.addConstraint({{0, 1.0}}, pH::constraint_type::LEQ, 2.0);
   lp.addConstraint({{0, 2.0}, {1, 2.0}}, pH::constraint_type::GEQ, 8.0);
   try {
@@ -178,6 +178,29 @@ int testUnbounded() {
   return 1;
 }
 
+void example() {
+  // Create a new LP model
+  pH::lp lp;
+
+  // Add some variables with various bounds. First argument is objective factor, second is lower bound (default 0.0), third is upper bound (default unlimited)
+  auto x0 = lp.addVariable(10.0, -std::numeric_limits<double>::infinity()); // unbounded variable
+  auto x1 = lp.addVariable(15.0, 2.0, 10.0); // lower bound = 2, upper_bound = 10
+
+   // Add limiting constraints
+  lp.addConstraint({{x0, 1.0}, {x1, 1.0}}, pH::constraint_type::LEQ, 9.0);
+  lp.addConstraint({{x0, 1.0}, {x1, 4.0}}, pH::constraint_type::LEQ, 24.0);
+
+  // Add constraint to make (0, 0) infeasible
+  lp.addConstraint({{x0, 1.0}, {x1, 1.0}}, pH::constraint_type::GEQ, 3.0);
+
+  // Solve model
+  pH::solution solution = lp.optimize();
+
+  std::cout << solution.toString() << std::endl;
+  // {115.000000, [4.000000, 5.000000]}
+}
+
 int main() {
+  example();
   return test1() + test2() + test3() + testLockedVariable() + testInfeasible() + testUnbounded() + testUnlimitedVariable() + testNoLowerBound();
 }

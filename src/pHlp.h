@@ -4,14 +4,12 @@
 #include <vector>
 #include <map>
 #include <sstream>
-#include <iostream>
 #include <limits>
 
 namespace pH {
 
 enum class constraint_type {
   LEQ,
-  EQ,
   GEQ
 };
 
@@ -32,11 +30,7 @@ struct solution {
 namespace details {
 
 struct constraint {
-  constraint(std::map<size_t, double> a, constraint_type t, double rhs) : a(std::move(a)), t(t), rhs(rhs) {
-    if (t == constraint_type::EQ) {
-      throw std::runtime_error("Unsupported constraint type");
-    }
-  }
+  constraint(std::map<size_t, double> a, constraint_type t, double rhs) : a(std::move(a)), t(t), rhs(rhs) {}
 
   std::map<size_t, double> a;
   constraint_type t;
@@ -65,14 +59,14 @@ struct mapped {
   double term;
 };
 
-struct stdModel {
+class stdModel {
+ public:
   stdModel(std::vector<variable> variables, std::vector<constraint> constraints)
-    : original_variable_size_(variables.size()),
-      variables_(std::move(variables)),
+    : variables_(std::move(variables)),
       constraints_(std::move(constraints)),
+      original_variable_size_(variables_.size()),
       mapped_variables_(original_variable_size_),
       objective_term_(0.0) {
-    size_t original_constraints_size = constraints_.size();
     for (size_t var = 0; var < original_variable_size_; var++) {
       auto& current = variables_[var];
       if (!current.hasLowerBound() && !current.hasUpperBound()) {
@@ -131,9 +125,10 @@ struct stdModel {
     return solution;
   }
 
-  size_t original_variable_size_;
   std::vector<variable> variables_;
   std::vector<constraint> constraints_;
+ private:
+  size_t original_variable_size_;
   std::vector<mapped> mapped_variables_;
   double objective_term_;
 };
@@ -144,7 +139,7 @@ class tableau {
       : num_rows_(m.constraints_.size() + 1), num_slacks_(m.constraints_.size()), num_cols_(m.variables_.size() + num_slacks_ + 1),
         tableau_(num_rows_ * num_cols_, 0.0), basic_variables_(m.constraints_.size()) {
     for (size_t i = 0; i < m.variables_.size(); i++) {
-      at(num_rows_ - 1, i) = -m.variables_[i].obj;
+      at(lastRow(), i) = -m.variables_[i].obj;
     }
     for (size_t i = 0; i < m.constraints_.size(); i++) {
       const auto& c = m.constraints_[i];
@@ -162,7 +157,7 @@ class tableau {
     if (obj_row == lastRow()) return;
     obj_row = lastRow();
     double inf_row_value = std::numeric_limits<double>::max();
-    for (size_t row = 0; row < num_rows_ - 1; row++) {
+    for (size_t row = 0; row < lastRow(); row++) {
       if (rhs(row) < 0.0 && rhs(row) < inf_row_value) {
         obj_row = row;
         inf_row_value = rhs(row);
@@ -188,13 +183,12 @@ class tableau {
   size_t pivotRow(size_t pivot_column, size_t obj_row) const {
     size_t pivot_row = std::numeric_limits<size_t>::max();
     double min_ratio = std::numeric_limits<double>::max();
-    for (size_t row = 0; row < num_rows_ - 1; row++) {
-      if (at(row, pivot_column) > 0.0) {
-        double ratio = std::max(0.0, rhs(row) / at(row, pivot_column));
-        if (ratio < min_ratio) {
-          pivot_row = row;
-          min_ratio = ratio;
-        }
+    for (size_t row = 0; row < lastRow(); row++) {
+      if (at(row, pivot_column) <= 0.0) continue;
+      double ratio = std::max(0.0, rhs(row) / at(row, pivot_column));
+      if (ratio < min_ratio) {
+        pivot_row = row;
+        min_ratio = ratio;
       }
     }
     if (pivot_row == std::numeric_limits<size_t>::max() && obj_row != lastRow()) {
@@ -206,9 +200,7 @@ class tableau {
   void pivot(size_t pivot_col, size_t pivot_row) {
     double pivot = at(pivot_row, pivot_col);
     for (size_t r = 0; r < num_rows_; r++) {
-      if (r == pivot_row) {
-        continue;
-      }
+      if (r == pivot_row) continue;
       double pivot_factor = at(r, pivot_col) / pivot;
       for (size_t c = 0; c < num_cols_; c++) {
         if (c == pivot_col) {
@@ -225,33 +217,16 @@ class tableau {
   }
 
   solution sol() const {
-    solution result{std::vector<double>(numVars() - num_slacks_, 0.0), rhs(num_rows_ - 1)};
+    solution result{std::vector<double>(numVars() - num_slacks_, 0.0), rhs(lastRow())};
     for (size_t i = 0; i < basic_variables_.size(); i++) {
-      if (basic_variables_[i] >= result.x.size()) {
-        continue;
+      if (basic_variables_[i] < result.x.size()) {
+        result.x[basic_variables_[i]] = rhs(i);
       }
-      result.x[basic_variables_[i]] = rhs(i);
     }
     return result;
   }
 
   size_t lastRow() const { return num_rows_ - 1; }
-
-  std::string toString() const {
-    std::stringstream ss;
-    for (size_t r = 0; r < num_rows_; r++) {
-      if (r < basic_variables_.size()) {
-        ss << "x" << basic_variables_[r] << ": ";
-      } else {
-        ss << "ob: ";
-      }
-      for (size_t c = 0; c < num_cols_; c++) {
-        ss << at(r, c) << ", ";
-      }
-      ss << std::endl;
-    }
-    return ss.str();
-  }
 
  private:
   double& at(size_t row, size_t col) { return tableau_[col * num_rows_ + row]; }
@@ -265,7 +240,9 @@ class tableau {
   size_t num_rows_;
   size_t num_slacks_;
   size_t num_cols_;
+
   std::vector<double> tableau_;
+
   std::vector<size_t> basic_variables_;
   std::vector<mapped> mapped_variables_;
 };
@@ -295,22 +272,17 @@ class lp {
   solution optimize() const {
     details::stdModel m(variables_, constraints_);
     details::tableau t(m);
-    std::cout << t.toString();
 
     size_t its = 0;
     size_t obj_row = 0;
     t.objRow(obj_row);
     size_t entering_pivot = t.pivotColumn(obj_row);
     while (entering_pivot != std::numeric_limits<size_t>::max()) {
-      std::cout << "objr: " << obj_row << std::endl;
-      std::cout << "col: " << entering_pivot << std::endl;
       size_t leaving_pivot = t.pivotRow(entering_pivot, obj_row);
-      std::cout << "row: " << leaving_pivot << std::endl;
       if (leaving_pivot == std::numeric_limits<size_t>::max()) {
         throw std::runtime_error("Unbounded model");
       }
       t.pivot(entering_pivot, leaving_pivot);
-      std::cout << std::endl << t.toString();
       t.objRow(obj_row);
       entering_pivot = t.pivotColumn(obj_row);
       its++;
@@ -319,7 +291,6 @@ class lp {
     if (obj_row != t.lastRow()) {
       throw std::runtime_error("Infeasible model");
     }
-    std::cout << "its: " << its << std::endl;
 
     return m.convertSolution(t.sol());
   }
